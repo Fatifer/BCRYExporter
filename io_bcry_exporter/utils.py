@@ -1,4 +1,4 @@
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Name:        utils.py
 # Purpose:     Utility functions for use throughout the add-on
 #
@@ -10,20 +10,24 @@
 # Copyright:   (c) Angelo J. Miner 2012
 # Copyright:   (c) Özkan Afacan 2016
 # Licence:     GPLv2+
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 # <pep8-80 compliant>
 
 
 if "bpy" in locals():
-    import importlib
-    importlib.reload(material_utils)
-    importlib.reload(exceptions)
+    import imp
+    imp.reload(material_utils)
+    imp.reload(exceptions)
 else:
     import bpy
-    from . import material_utils, exceptions
+    from io_bcry_exporter import material_utils, exceptions
 
 
+from io_bcry_exporter.outpipe import bcPrint
+from mathutils import Matrix, Vector
+from xml.dom.minidom import Document, parseString
+import bpy
 import fnmatch
 import math
 import os
@@ -31,24 +35,18 @@ import random
 import re
 import subprocess
 import sys
-import time
 import xml.dom.minidom
-from xml.dom.minidom import Document, parseString
-
+import time
 import bmesh
-import bpy
-import math
-from mathutils import Matrix, Vector
 
-from .outpipe import bcPrint
 
 # Globals:
 to_degrees = 180.0 / math.pi
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Conversions:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def transform_bone_matrix(bone):
     if not bone.parent:
@@ -65,9 +63,8 @@ def transform_bone_matrix(bone):
     row_x = Vector((x_axis @ i1, x_axis @ i2, x_axis @ i3))
     row_y = Vector((y_axis @ i1, y_axis @ i2, y_axis @ i3))
     row_z = Vector((z_axis @ i1, z_axis @ i2, z_axis @ i3))
-
+    
     trans_matrix = Matrix((row_x, row_y, row_z))
-
     location = trans_matrix @ bone.matrix.translation
     bone_matrix = trans_matrix.to_4x4()
     bone_matrix.translation = -location
@@ -82,7 +79,7 @@ def transform_animation_matrix(matrix):
 
     new_matrix = eu.to_matrix()
     new_matrix = new_matrix.to_4x4()
-    new_matrix.translation = matrix.translation
+    new_matrix.translation = matrix.translation 
 
     return new_matrix
 
@@ -127,9 +124,9 @@ def join(*items):
     return "".join(strings)
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # XSI Functions:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def get_xsi_filetype_value(node):
     node_type = get_node_type(node)
@@ -147,9 +144,9 @@ def get_xsi_filetype_value(node):
         return "1"
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Geometry Functions:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def get_geometry_name(group, object_):
     node_name = get_node_name(group)
@@ -161,7 +158,7 @@ def get_geometry_name(group, object_):
         return "{}_{}_geometry".format(node_name, object_.name)
 
 
-def get_bmesh(object_, apply_modifiers=False):
+def get_bmesh(object_):
     set_active(object_)
 
     # bmesh may be gotten only in edit mode for active object.
@@ -172,29 +169,112 @@ def get_bmesh(object_, apply_modifiers=False):
     # That lacking related with Blender, if it will fix in future that
     # code will be clean.
 
+    scene_first_layer = bpy.context.view_layer; # bpy.context.scene.layers[0]
+    #bpy.context.scene.layers[0] = True
+
+    layer_state = not layers_get(object_)
+    # if layer_state:
+    #     layers_set(object, True)
+
     bcry_split_modifier(object_)
 
+    backup_data = object_.data
+    #object_.data = object_.to_mesh(
+    #    bpy.context.scene, apply_modifiers, 'PREVIEW')
+
+    # Depsgraph
+    # TODO: check
     depsgraph = bpy.context.evaluated_depsgraph_get()
-    bpy.ops.object.mode_set(mode='EDIT')
+    bmesh_ = bmesh.new()
+    bmesh_.from_object(object_, depsgraph)
 
-    if apply_modifiers:
-        object_eval = object_.evaluated_get(depsgraph)
-        mesh = object_eval.to_mesh()
-        bmesh_ = bmesh.new()
-        bmesh_.from_mesh(mesh)
+    # Get modified object
+    # ob_eval = object_.evaluated_get(depsgraph)
+    # new_ob = ob_eval.copy()
+    # new_ob.data = ob_eval.to_mesh()
 
+    #bpy.ops.object.mode_set(mode='EDIT')
+    #bmesh_ = bmesh.from_edit_mesh(object_.data)
+
+    backup_info = (backup_data, layer_state, scene_first_layer)
+
+    return bmesh_, backup_info
+
+def layers_get(object):
+    """Gets membership of object in 0-19 numbered layers/collections
+
+    returns: list of booleans with length of 20
+    """
+    if hasattr(object, "layers"):
+        return object.layers
     else:
-        mesh = object_.to_mesh()
-        bmesh_ = bmesh.new()
-        bmesh_.from_mesh(mesh)
-
-    return bmesh_
+        obj_colls = object.users_collection # get all collections object is in
+        collection_names = [coll.name for coll in obj_colls]
+        return [str(i) in collection_names for i in range(20)] # ordered bool list
 
 
-def clear_bmesh(object_, bmesh_):
-    bpy.ops.object.mode_set(mode='OBJECT')
+def layers_set(object, layers=[], context=None):
+    """Assign layers or assign/crate collections with 2.7/2.8 support
+
+    Arguments:
+        object: valid object from bpy.data.objects
+        layers: list of bools with a length of 20
+    """
+    if hasattr(object, "layers"):
+        # Blender 2.7x branch
+        object.layers = layers  # raises exception if not a bool list of len 20
+        return
+    
+    # Blender 2.8x branch, apply layers checks to force consistency with 2.7
+    if not context:
+        context = bpy.context
+    if len(layers) != 20:
+        # artificially force consistency with 2.8 layer counts
+        raise Exception("Length of layers should be 20")
+    elif sum([not isinstance(n, bool) for n in layers])>0:
+        # force that the list of layers is bools only
+        raise Exception("All layers elements must be booleans")
+    
+    # Create collection and assign object
+    for i, layer in enumerate(layers):
+        if str(i) not in bpy.data.collections and layer is False:
+            continue # collection doesn't exist, but not 'enabling layer' anyways
+        elif str(i) not in bpy.data.collections and layer is True:
+            collection = bpy.data.collections.new(name=str(i)) # create new one
+            context.scene.collection.children.link(collection) # add to scene
+        else:
+            collection = bpy.data.collections[str(i)] # careful of linked libraries!
+        
+        # now assign "layer visibility" by adding or removing to named collection
+        if layer is True:
+            # add object to layer if not already present
+            if object in collection.objects[:]:
+                continue
+            else:
+                collection.objects.link(object)
+        else:
+            # remove object from layer if present
+            if object not in collection.objects[:]:
+                continue
+            else:
+                collection.objects.unlink(object)
+
+def clear_bmesh(object_, backup_info):
+    backup_data = backup_info[0]
+    layer_state = backup_info[1]
+    scene_first_layer = backup_info[2]
+
+    # TODO: check
+    #bpy.ops.object.mode_set(mode='OBJECT')
+    #bpy.context.scene.layers[0] = scene_first_layer
+
+    if layer_state:
+        object_.layers[0] = False
+
+    export_data = object_.data
+    object_.data = backup_data
     remove_bcry_split_modifier(object_)
-    object_.to_mesh_clear()
+    #bpy.data.meshes.remove(export_data)
 
 
 def bcry_split_modifier(object_):
@@ -222,6 +302,7 @@ def remove_bcry_split_modifier(object_):
 def get_tessfaces(bmesh_):
     tessfaces = []
     tfs = bmesh_.calc_loop_triangles()
+    #tfs = bmesh_.calc_tessface()
 
     for face in bmesh_.faces:
         # initialize tessfaces array
@@ -253,14 +334,16 @@ def get_custom_normals(bmesh_, use_edge_angle, split_angle):
                         continue
                     if link_face.smooth:
                         if not use_edge_angle:
-                            v_normals.append([link_face.normal.normalized(), link_face.calc_area()])
+                            v_normals.append(
+                                [link_face.normal.normalized(), link_face.calc_area()])
 
                         elif use_edge_angle:
                             face_angle = face.normal.normalized().dot(link_face.normal.normalized())
                             face_angle = min(1.0, max(face_angle, -1.0))
                             face_angle = math.acos(face_angle)
                             if face_angle < split_angle:
-                                v_normals.append([link_face.normal.normalized(), link_face.calc_area()])
+                                v_normals.append(
+                                    [link_face.normal.normalized(), link_face.calc_area()])
 
                 smooth_normal = Vector()
                 area_sum = 0
@@ -290,26 +373,32 @@ def get_normal_array(bmesh_, use_edge_angle, use_edge_sharp, split_angle):
                         continue
                     if link_face.smooth:
                         if not use_edge_angle and not use_edge_sharp:
-                            v_normals.append([link_face.normal.normalized(), link_face.calc_area()])
+                            v_normals.append(
+                                [link_face.normal.normalized(), link_face.calc_area()])
 
                         elif use_edge_angle and not use_edge_sharp:
                             face_angle = face.normal.normalized().dot(link_face.normal.normalized())
                             face_angle = min(1.0, max(face_angle, -1.0))
                             face_angle = math.acos(face_angle)
                             if face_angle < split_angle:
-                                v_normals.append([link_face.normal.normalized(), link_face.calc_area()])
+                                v_normals.append(
+                                    [link_face.normal.normalized(), link_face.calc_area()])
 
                         elif use_edge_sharp and not use_edge_angle:
                             is_neighbor_face = False
                             for edge in vertex.link_edges:
-                                if (edge in face.edges) and (edge in link_face.edges):
+                                if (edge in face.edges) and (
+                                        edge in link_face.edges):
                                     is_neighbor_face = True
                                     if edge.smooth:
-                                        v_normals.append([link_face.normal.normalized(), link_face.calc_area()])
+                                        v_normals.append(
+                                            [link_face.normal.normalized(), link_face.calc_area()])
 
                             if not is_neighbor_face:
-                                if check_sharp_edges(vertex, face, None, link_face):
-                                    v_normals.append([link_face.normal.normalized(), link_face.calc_area()])
+                                if check_sharp_edges(
+                                        vertex, face, None, link_face):
+                                    v_normals.append(
+                                        [link_face.normal.normalized(), link_face.calc_area()])
 
                         elif use_edge_angle and use_edge_sharp:
                             face_angle = face.normal.normalized().dot(link_face.normal.normalized())
@@ -318,15 +407,18 @@ def get_normal_array(bmesh_, use_edge_angle, use_edge_sharp, split_angle):
                             if face_angle < split_angle:
                                 is_neighbor_face = False
                                 for edge in vertex.link_edges:
-                                    if (edge in face.edges) and (edge in link_face.edges):
+                                    if (edge in face.edges) and (
+                                            edge in link_face.edges):
                                         is_neighbor_face = True
                                         if edge.smooth:
-                                            v_normals.append([link_face.normal.normalized(), link_face.calc_area()])
-                                            # print(link_face.normal.normalized(), link_face.calc_area())
+                                            v_normals.append(
+                                                [link_face.normal.normalized(), link_face.calc_area()])
 
                                 if not is_neighbor_face:
-                                    if check_sharp_edges(vertex, face, None, link_face):
-                                        v_normals.append([link_face.normal.normalized(), link_face.calc_area()])
+                                    if check_sharp_edges(
+                                            vertex, face, None, link_face):
+                                        v_normals.append(
+                                            [link_face.normal.normalized(), link_face.calc_area()])
 
                 smooth_normal = Vector()
                 area_sum = 0
@@ -334,7 +426,8 @@ def get_normal_array(bmesh_, use_edge_angle, use_edge_sharp, split_angle):
                     area_sum += vertex_normal[1]
                 for vertex_normal in v_normals:
                     if area_sum:
-                        smooth_normal += vertex_normal[0] * (vertex_normal[1] / area_sum)
+                        smooth_normal += vertex_normal[0] * \
+                            (vertex_normal[1] / area_sum)
                 float_normals.extend(smooth_normal.normalized())
 
     return float_normals
@@ -351,8 +444,8 @@ def check_sharp_edges(vertex, current_face, previous_face, target_face):
                         return True
                     else:
                         new_previous_face = current_face
-                        # print(neighbor_face, target_face, current_face, previous_face)
-                        return check_sharp_edges(vertex, neighbor_face, new_previous_face, target_face)
+                        return check_sharp_edges(
+                            vertex, neighbor_face, new_previous_face, target_face)
 
     return False
 
@@ -367,87 +460,9 @@ def get_joint_name(object_, index=1):
     return joint_name
 
 
-def rebuild_armature(armature):
-    """ Try to re-create new armature bone to bone
-    for fix wrong export bone positions and hierarchy"""
-    old_bones = []
-    new_bones = []
-    obj_childrens = []
-    temp_suffix = "+oldbcry"
-
-    # collect a list of childrens in armature for fix vgroup names
-    for obj in armature.children:
-        obj_childrens.append(obj)
-
-    bpy.ops.object.mode_set(mode="EDIT")
-
-    edit_bones = armature.data.edit_bones
-    bones_count = len(edit_bones)
-
-    # collect a list of old bones
-    for bone in edit_bones:
-        old_bones.append(bone)
-
-    # create a list of new bones (empty)
-    for i in range(bones_count):
-        new_bone = edit_bones.new(str(i))
-        new_bones.append(new_bone)
-
-    for i in range(bones_count):
-        # copy bones attributes
-        new_bones[i].head = old_bones[i].head
-        new_bones[i].tail = old_bones[i].tail
-        new_bones[i].roll = old_bones[i].roll
-        new_bones[i].use_connect = old_bones[i].use_connect
-        new_bones[i].use_deform = old_bones[i].use_deform
-        old_name = old_bones[i].name
-        old_bones[i].name = old_bones[i].name + temp_suffix
-        new_bones[i].name = old_name
-
-        # copy custom properties
-        if len(old_bones[i].items()) > 0:
-            for p in old_bones[i].items():
-                new_bones[i][p[0]] = p[1]
-
-    for bone in edit_bones:
-        if bone.name.endswith(temp_suffix):
-            if bone.parent is not None:
-                split_name = bone.name.split("+")
-                temp_name = split_name[0]
-                split_name = bone.parent.name.split("+")
-                parent_name = split_name[0]
-                edit_bones[temp_name].parent = edit_bones[parent_name]
-
-    for i in range(bones_count):
-        edit_bones.remove(old_bones[i])
-
-    bpy.ops.object.mode_set(mode="OBJECT")
-
-    if len(obj_childrens) > 0:
-        for obj in armature.children:
-            if obj.type == 'MESH':
-                for v in obj.vertex_groups.values():
-                    if v.name.endswith(temp_suffix):
-                        split_name = v.name.split("+")
-                        v.name = split_name[0]
-
-    # Rename data_path in assigned Actions through NLA strips
-
-    if len(bpy.data.actions) > 0:
-
-        for action in bpy.data.actions:
-            for fc in action.fcurves:
-                if fc.data_path:
-                    if temp_suffix in fc.data_path:
-                        fc.data_path = fc.data_path.replace(temp_suffix, "")
-
-                if fc.group:
-                    if temp_suffix in fc.group.name:
-                        fc.group.name = fc.group.name.replace(temp_suffix, "")
-
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Path Manipulations:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def get_absolute_path(file_path):
     [is_relative, file_path] = strip_blender_path_prefix(file_path)
@@ -571,9 +586,9 @@ def trim_path_to(path, trim_to):
     return path_trimmed
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # File Clean-Up:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def clean_file(just_selected=False):
     for node in get_export_nodes(just_selected):
@@ -642,9 +657,9 @@ def fix_weights():
     bcPrint("Weights Corrected.")
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Collections:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def get_export_nodes(just_selected=False):
     export_nodes = []
@@ -652,12 +667,9 @@ def get_export_nodes(just_selected=False):
     if just_selected:
         return __get_selected_nodes()
 
-    export_nodes_collection = bpy.data.collections.get("cry_export_nodes")
-    if export_nodes_collection is not None:
-
-        for collection in bpy.data.collections:
-            if is_export_node(collection) and len(collection.objects) > 0:
-                export_nodes.append(collection)
+    for group in bpy.data.collections:
+        if is_export_node(group) and len(group.objects) > 0:
+            export_nodes.append(group)
 
     return export_nodes
 
@@ -675,9 +687,9 @@ def get_mesh_export_nodes(just_selected=False):
 
 def get_chr_node_from_skeleton(armature):
     for child in armature.children:
-        for collection in child.users_collection:
-            if collection.name.endswith('.chr'):
-                return collection
+        for group in child.users_collection:
+            if group.name.endswith('.chr'):
+                return group
 
     return None
 
@@ -696,7 +708,7 @@ def get_chr_names(just_selected=False):
 
     for node in get_export_nodes(just_selected):
         if get_node_type(node) == 'chr':
-            chr_names.append(get_node_name(node))
+            chr_nodes.append(get_node_name(node))
 
     return chr_names
 
@@ -707,13 +719,11 @@ def get_animation_export_nodes(just_selected=False):
     if just_selected:
         return __get_selected_nodes()
 
-    export_nodes_collection = bpy.data.collections.get("cry_export_nodes")
-    if export_nodes_collection is not None:
-        ALLOWED_NODE_TYPES = ('anm', 'i_caf')
-        for collection in bpy.data.collections:
-            if is_export_node(collection) and len(collection.objects) > 0:
-                if get_node_type(collection) in ALLOWED_NODE_TYPES:
-                    export_nodes.append(collection)
+    ALLOWED_NODE_TYPES = ('anm', 'i_caf')
+    for group in bpy.data.collections:
+        if is_export_node(group) and len(group.objects) > 0:
+            if get_node_type(group) in ALLOWED_NODE_TYPES:
+                export_nodes.append(group)
 
     return export_nodes
 
@@ -721,8 +731,8 @@ def get_animation_export_nodes(just_selected=False):
 def __get_selected_nodes():
     export_nodes = []
 
-    for obj in bpy.context.selected_objects:
-        for group in obj.users_collection:
+    for object in bpy.context.selected_objects:
+        for group in object.users_collection:
             if is_export_node(group) and group not in export_nodes:
                 export_nodes.append(group)
 
@@ -761,7 +771,8 @@ def __get_geometry():
 def __get_controllers():
     items = []
     for object_ in get_type("objects"):
-        if not (is_bone_geometry(object_) or is_fakebone(object_)):
+        if not (is_bone_geometry(object_) or
+                is_fakebone(object_)):
             if object_.parent is not None:
                 if object_.parent.type == "ARMATURE":
                     items.append(object_.parent)
@@ -773,7 +784,8 @@ def __get_skins():
     items = []
     for object_ in get_type("objects"):
         if object_.type == "MESH":
-            if not (is_bone_geometry(object_) or is_fakebone(object_)):
+            if not (is_bone_geometry(object_) or
+                    is_fakebone(object_)):
                 if object_.parent is not None:
                     if object_.parent.type == "ARMATURE":
                         items.append(object_)
@@ -799,16 +811,15 @@ def __get_bone_geometry():
     return items
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Export Nodes:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def is_export_node(node):
     extensions = [".cgf", ".cga", ".chr", ".skin", ".anm", ".i_caf"]
     for extension in extensions:
         if node.name.endswith(extension):
-            if node.name in bpy.data.collections['cry_export_nodes'].children:
-                return True
+            return True
 
     return False
 
@@ -832,7 +843,7 @@ def get_node_type(node):
     return node_components[-1]
 
 
-def is_visual_scene_node_writed(object_, group):
+def is_visual_scene_node_written(object_, group):
     if is_bone_geometry(object_):
         return False
     if object_.parent is not None and object_.type not in ('MESH', 'EMPTY'):
@@ -867,9 +878,9 @@ def is_dummy(object_):
     return object_.type == 'EMPTY'
 
 
-# ------------------------------------------------------------------------------
-# Fakebones:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+# Fakebones: 
+#------------------------------------------------------------------------------
 
 
 def get_fakebone(bone_name):
@@ -887,11 +898,6 @@ def is_fakebone(object_):
 def add_fakebones(group=None):
     '''Add helpers to track bone transforms.'''
     scene = bpy.context.scene
-
-    """Set the Master collection(Scene) active, prevent errors when
-    fakebones doesn't create if current active scene is hide"""
-    x = bpy.context.view_layer.layer_collection
-    bpy.context.view_layer.active_layer_collection = x
     remove_unused_meshes()
 
     if group:
@@ -910,28 +916,27 @@ def add_fakebones(group=None):
     time.sleep(0.5)
 
     scene.frame_set(scene.frame_start)
-    for pose_bone in armature.pose.bones:
+    for pose_bone in armature.pose.bones:#TODO: EVERYWHERE FakeBones dont know if it makes sense REWRITE: if "ExportBone" in pose_bone
+        # if not "ExportBone" in pose_bone:
+        #     continue
+        
+        
         bone_matrix = transform_bone_matrix(pose_bone)
-        # loc, rot, scl = bone_matrix.decompose()
-
-        bpy.ops.mesh.primitive_cube_add(size=0.01)
+        loc, rot, scl = bone_matrix.decompose()
+        
+        bpy.ops.mesh.primitive_cube_add(size=0.1) #changed radius to size
         fakebone = bpy.context.active_object
         fakebone.matrix_world = bone_matrix
         fakebone.scale = (1, 1, 1)
         fakebone.name = pose_bone.name
         fakebone["fakebone"] = "fakebone"
-
-        # set parent
-        fakebone.parent = armature
-        fakebone.parent_type = "BONE"
-        fakebone.parent_bone = pose_bone.name
-
-        fakebone.users_collection[0].objects.unlink(fakebone)
+        bpy.context.view_layer.objects.active = armature # changed from scene.objects.active = armature to and with line below :)
+        armature.select_set(state = True) #armature.select_set(state = True, view_layer = None)
+        armature.data.bones.active = pose_bone.bone
+        bpy.ops.object.parent_set(type='BONE_RELATIVE') 
 
         if group:
             group.objects.link(fakebone)
-        else:
-            armature.users_collection[0].objects.link(fakebone)
 
     if group:
         if get_node_type(group) == 'i_caf':
@@ -947,15 +952,17 @@ def remove_fakebones():
         bpy.ops.object.mode_set(mode='OBJECT')
     deselect_all()
     for fakebone in get_type("fakebones"):
-        fakebone.select_set(True)
-        bpy.ops.object.delete(use_global=False)
+        #bpy.context.view_layer.objects.active = fakebone
+        #fakebone.select_set(True)
+        bpy.data.objects.remove(fakebone, do_unlink=True)
+        #bpy.ops.object.delete(use_global=False)
     if old_mode != 'OBJECT':
         bpy.ops.object.mode_set(mode=old_mode)
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Animation and Keyframing:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def process_animation(armature, skeleton):
     '''Process animation to export.'''
@@ -978,12 +985,18 @@ def get_keyframes(armature):
 
         locations = {}
         rotations = {}
-
+        
         for bone in armature.pose.bones:
+            # if not "ExportBone" in bone:
+            #     continue
+            #for the first child
             bone_matrix = transform_animation_matrix(bone.matrix)
             if bone.parent and bone.parent.parent:
+
                 parent_matrix = transform_animation_matrix(bone.parent.matrix)
+                
                 bone_matrix = parent_matrix.inverted() @ bone_matrix
+                                
             elif bone.name == 'Locator_Locomotion':
                 bone_matrix = bone.matrix
             elif not bone.parent:
@@ -1024,6 +1037,9 @@ def set_keyframe(armature, frame, location_list, rotation_list):
     bpy.context.scene.frame_set(frame)
 
     for bone in armature.pose.bones:
+        # if not "ExportBone" in bone:
+        #     continue
+        
         index = frame - bpy.context.scene.frame_start
 
         fakeBone = bpy.data.objects[bone.name]
@@ -1038,32 +1054,35 @@ def set_keyframe(armature, frame, location_list, rotation_list):
 def apply_animation_scale(armature):
     '''Apply Animation Scale.'''
     scene = bpy.context.scene
-    x = bpy.context.view_layer.layer_collection
-    bpy.context.view_layer.active_layer_collection = x
     remove_unused_meshes()
 
     if armature is None or armature.type != "ARMATURE":
         return
 
-    original_action = armature.animation_data.action
     skeleton = armature.data
     empties = []
 
     deselect_all()
     scene.frame_set(scene.frame_start)
     for pose_bone in armature.pose.bones:
+        # if not "ExportBone" in pose_bone:
+        #     continue
         bmatrix = pose_bone.bone.head_local
-        bpy.ops.object.empty_add(type='PLAIN_AXES', radius=0.1, location=(0,0,0))
+        bpy.ops.object.empty_add(type='PLAIN_AXES', radius=0.1)
         empty = bpy.context.active_object
         empty.name = pose_bone.name
 
         bpy.ops.object.constraint_add(type='CHILD_OF')
-        bpy.data.objects[empty.name].constraints['Child Of'].use_scale_x = False
-        bpy.data.objects[empty.name].constraints['Child Of'].use_scale_y = False
-        bpy.data.objects[empty.name].constraints['Child Of'].use_scale_z = False
+        bpy.data.objects[empty.name].constraints[
+            'Child Of'].use_scale_x = False
+        bpy.data.objects[empty.name].constraints[
+            'Child Of'].use_scale_y = False
+        bpy.data.objects[empty.name].constraints[
+            'Child Of'].use_scale_z = False
 
         bpy.data.objects[empty.name].constraints['Child Of'].target = armature
-        bpy.data.objects[empty.name].constraints['Child Of'].subtarget = pose_bone.name
+        bpy.data.objects[empty.name].constraints[
+            'Child Of'].subtarget = pose_bone.name
 
         bcPrint("Baking animation on " + empty.name + "...")
         bpy.ops.nla.bake(
@@ -1074,17 +1093,19 @@ def apply_animation_scale(armature):
             visual_keying=True,
             clear_constraints=True,
             clear_parents=False,
-            use_current_action=False,
             bake_types={'OBJECT'})
 
-        empty.animation_data.action.name += "+bcry"
         empties.append(empty)
+
+    for empty in empties:
+        empty.select_set(True)
 
     bcPrint("Baked Animation successfully on empties.")
     deselect_all()
 
     set_active(armature)
     armature.select_set(True)
+    bpy.ops.anim.keyframe_clear_v3d()
 
     bpy.ops.object.transform_apply(rotation=True, scale=True)
 
@@ -1092,6 +1113,8 @@ def apply_animation_scale(armature):
     bpy.ops.pose.user_transforms_clear()
 
     for pose_bone in armature.pose.bones:
+        # if not "ExportBone" in pose_bone:
+        #     continue
         pose_bone.constraints.new(type='COPY_LOCATION')
         pose_bone.constraints.new(type='COPY_ROTATION')
 
@@ -1101,7 +1124,7 @@ def apply_animation_scale(armature):
                 pose_bone.constraints['Copy Rotation'].target = empty
                 break
 
-        pose_bone.bone.select = True
+        pose_bone.bone.select_set(True)
 
     bcPrint("Baking Animation on skeleton...")
     bpy.ops.nla.bake(
@@ -1112,13 +1135,9 @@ def apply_animation_scale(armature):
         visual_keying=True,
         clear_constraints=True,
         clear_parents=False,
-        use_current_action=False,
         bake_types={'POSE'})
 
     bpy.ops.object.mode_set(mode='OBJECT')
-
-    armature.animation_data.action.name = original_action.name + "_scaled"
-    armature.animation_data.action.use_fake_user = True
 
     deselect_all()
 
@@ -1127,9 +1146,6 @@ def apply_animation_scale(armature):
         empty.select_set(True)
 
     bpy.ops.object.delete()
-
-    # Remove temp acitons (created by empties)
-    remove_unused_actions()
 
     bcPrint("Apply Animation was completed.")
 
@@ -1160,30 +1176,17 @@ def get_animation_id(group):
             return "{!s}-{!s}".format(node_name, cga_name)
 
 
-def get_geometry_animation_file_name(collection):
-    node_type = get_node_type(collection)
-    node_name = get_node_name(collection)
+def get_geometry_animation_file_name(group):
+    node_type = get_node_type(group)
+    node_name = get_node_name(group)
 
-    cga_node = find_cga_node_from_anm_node(collection)
+    cga_node = find_cga_node_from_anm_node(group)
     if cga_node:
         cga_name = get_node_name(cga_node)
         return "{!s}_{!s}.anm".format(cga_name, node_name)
     else:
-        cga_name = collection.objects[0].name
+        cga_name = group.objects[0].name
         return "{!s}_{!s}.anm".format(cga_name, node_name)
-
-
-def get_cryasset_animation_file_name(collection):
-    node_type = get_node_type(collection)
-    node_name = get_node_name(collection)
-
-    cga_node = find_cga_node_from_anm_node(collection)
-    if cga_node:
-        cga_name = get_node_name(cga_node)
-        return "{!s}_{!s}.anm.cryasset".format(cga_name, node_name)
-    else:
-        cga_name = collection.objects[0].name
-        return "{!s}_{!s}.anm.cryasset".format(cga_name, node_name)
 
 
 def find_cga_node_from_anm_node(anm_group):
@@ -1194,9 +1197,9 @@ def find_cga_node_from_anm_node(anm_group):
     return None
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # LOD Functions:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def is_lod_geometry(object_):
     return object_.name[:-1].endswith('_LOD')
@@ -1221,9 +1224,9 @@ def get_lod_geometries(object_):
     return lods
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Bone Physics:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def get_bone_geometry(bone):
     bone_name = bone.name
@@ -1323,9 +1326,9 @@ def is_in_list(str, list_):
     return False
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Skeleton:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def get_root_bone(armature):
     for bone in get_bones(armature):
@@ -1353,8 +1356,8 @@ def get_armature():
         return object_
 
 
-def get_bones(armature):
-    return [bone for bone in armature.data.bones]
+def get_bones(armature):#TODO: Get just the ExportBone taged bones
+    return [bone for bone in armature.data.bones]# if "ExportBone" in bone]
 
 
 def get_animation_node_range(object_, node_name, initial_start, initial_end):
@@ -1385,11 +1388,13 @@ def get_armature_from_node(group):
     if armature_count == 1:
         return armature
 
+    error_message = None
     if armature_count == 0:
         raise exceptions.BCryException("i_caf node has no armature!")
+        error_message = "i_caf node has no armature!"
     elif armature_count > 1:
         raise exceptions.BCryException(
-            "{} i_caf node have more than one armature!".format(object_.name))
+            "{} i_caf node have more than one armature!".format(node_name))
 
     return None
 
@@ -1408,9 +1413,9 @@ def recover_bone_layers(armature, layers):
         armature.data.layers[index] = layers[index]
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # General:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def select_all():
     for object_ in bpy.data.objects:
@@ -1444,12 +1449,6 @@ def remove_unused_meshes():
             bpy.data.meshes.remove(mesh)
 
 
-def remove_unused_actions():
-    for action in bpy.data.actions:
-        if "+bcry" in action.name:
-            bpy.data.actions.remove(action)
-
-
 def get_bounding_box(object_):
     vmin = Vector()
     vmax = Vector()
@@ -1465,9 +1464,9 @@ def get_bounding_box(object_):
     return vmin[0], vmin[1], vmin[2], vmax[0], vmax[1], vmax[2]
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Overriding Context:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def get_3d_context(object_):
     window = bpy.context.window
@@ -1513,9 +1512,9 @@ def override(obj, active=True, selected=True):
     return ctx
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Layer File:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def get_guid():
     GUID = "{{}-{}-{}-{}-{}}".format(random_hex_sector(8),
@@ -1531,9 +1530,9 @@ def random_hex_sector(length):
     return fixed_length_hex_format % random.randrange(16 ** length)
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Scripting:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def generate_file_contents(type_):
     if type_ == "chrparams":
@@ -1588,9 +1587,9 @@ def remove_file(filepath):
         os.remove(filepath)
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Collada:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def write_source(id_, type_, array, params):
     doc = Document()
@@ -1654,3 +1653,4 @@ def write_input(name, offset, type_, semantic):
 # this is needed if you want to access more than the first def
 if __name__ == "__main__":
     register()
+    

@@ -1,4 +1,4 @@
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Name:        export_animations.py
 # Purpose:     Animation exporter to CryEngine
 #
@@ -9,23 +9,24 @@
 # Created:     13/06/2016
 # Copyright:   (c) Özkan Afacan 2016
 # License:     GPLv2+
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 
 if "bpy" in locals():
-    import importlib
-    importlib.reload(utils)
-    importlib.reload(exceptions)
+    import imp
+    imp.reload(utils)
+    imp.reload(exceptions)
 else:
     import bpy
-    from . import export, utils, exceptions
+    from io_bcry_exporter import export, utils, exceptions
 
-import os
-import xml.dom.minidom
+from io_bcry_exporter.rc import RCInstance
+from io_bcry_exporter.outpipe import bcPrint
+
 from xml.dom.minidom import Document, Element, parse, parseString
+import xml.dom.minidom
+import os
 
-from .outpipe import bcPrint
-from .rc import RCInstance
 
 AXES = {
     'X': 0,
@@ -121,9 +122,10 @@ class CrytekDaeAnimationExporter(export.CrytekDaeExporter):
     def _prepare_for_export(self):
         utils.clean_file()
 
-    # -----------------------------------------------------------------------------
-    # Library Animations and Clips: --> Animations, F-Curves
-    # -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Library Animations and Clips: --> Animations, F-Curves
+# -----------------------------------------------------------------------------
 
     def _export_library_animation_clips_and_animations(
             self, libanmcl, libanm, group):
@@ -331,16 +333,16 @@ class CrytekDaeAnimationExporter(export.CrytekDaeExporter):
 
         return sampler
 
-    # ---------------------------------------------------------------------
-    # Library Visual Scene: --> Skeleton and _Phys bones, Bone
-    #       Transformations, and Instance URL (_boneGeometry) and extras.
-    # ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# Library Visual Scene: --> Skeleton and _Phys bones, Bone
+#       Transformations, and Instance URL (_boneGeometry) and extras.
+# ---------------------------------------------------------------------
 
     def _export_library_visual_scenes(self, visual_scene, group):
         if utils.get_animation_export_nodes():
             if utils.are_duplicate_nodes():
                 message = "Duplicate Node Names"
-                bpy.ops.bcry.display_error('INVOKE_DEFAULT', message=message)
+                bpy.ops.screen.display_error('INVOKE_DEFAULT', message=message)
 
             self._write_export_node(group, visual_scene)
         else:
@@ -435,14 +437,14 @@ def save(config):
 def register():
     bpy.utils.register_class(CrytekDaeAnimationExporter)
 
-    # bpy.utils.register_class(TriangulateMeError)
-    # bpy.utils.register_class(Error)
+    bpy.utils.register_class(TriangulateMeError)
+    bpy.utils.register_class(Error)
 
 
 def unregister():
     bpy.utils.unregister_class(CrytekDaeAnimationExporter)
-    # bpy.utils.unregister_class(TriangulateMeError)
-    # bpy.utils.unregister_class(Error)
+    bpy.utils.unregister_class(TriangulateMeError)
+    bpy.utils.unregister_class(Error)
 
 
 if __name__ == "__main__":

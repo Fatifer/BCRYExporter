@@ -1,4 +1,4 @@
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Name:        outpipe.py
 # Purpose:     Pipeline for console output
 #
@@ -9,12 +9,12 @@
 # Created:     N/A
 # Copyright:   (c) N/A
 # Licence:     GPLv2+
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 # <pep8-80 compliant>
 
 
-from . import exceptions
+from io_bcry_exporter import exceptions
 from logging import basicConfig, info, debug, warning, DEBUG
 
 

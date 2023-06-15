@@ -1,4 +1,4 @@
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Name:        rc.py
 # Purpose:     Resource compiler transactions
 #
@@ -9,26 +9,25 @@
 # Created:     2/12/2016
 # Copyright:   (c) Daniel White 2016
 # Licence:     GPLv2+
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 # <pep8-80 compliant>
 
 
 if "bpy" in locals():
-    import importlib
-    importlib.reload(utils)
+    import imp
+    imp.reload(utils)
 else:
     import bpy
-    from . import utils
+    from io_bcry_exporter import utils
 
+from io_bcry_exporter.outpipe import bcPrint
 import fnmatch
 import os
 import shutil
 import subprocess
-import tempfile
 import threading
-
-from .outpipe import bcPrint
+import tempfile
 
 
 class RCInstance:
@@ -109,26 +108,20 @@ class _DAEConverter:
     def __rename_anm_files(self, dae_path):
         output_path = os.path.dirname(dae_path)
 
-        for collection in utils.get_export_nodes():
-            if utils.get_node_type(collection) == 'anm':
-                node_name = utils.get_node_name(collection)
-                src_name = "{}_{}".format(node_name, collection.name)
+        for group in utils.get_export_nodes():
+            if utils.get_node_type(group) == 'anm':
+                node_name = utils.get_node_name(group)
+                src_name = "{}_{}".format(node_name, group.name)
                 src_name = os.path.join(output_path, src_name)
-                src_cryasset_name = "{}_{}".format(node_name, collection.name + ".cryasset")
-                src_cryasset_name = os.path.join(output_path, src_cryasset_name)
 
                 if os.path.exists(src_name):
-                    dest_name = utils.get_geometry_animation_file_name(collection)
+                    dest_name = utils.get_geometry_animation_file_name(group)
                     dest_name = os.path.join(output_path, dest_name)
-                    dest_cryasset_name = utils.get_cryasset_animation_file_name(collection)
-                    dest_cryasset_name = os.path.join(output_path, dest_cryasset_name)
 
                     if os.path.exists(dest_name):
                         os.remove(dest_name)
-                        os.remove(dest_cryasset_name)
 
                     os.rename(src_name, dest_name)
-                    os.rename(src_cryasset_name, dest_cryasset_name)
 
     def __get_mtl_files_in_directory(self, directory):
         MTL_MATCH_STRING = "*.{!s}".format("mtl")
@@ -264,37 +257,40 @@ class _TIFConverter:
 
     def __call__(self):
         for image in self.__images_to_convert:
-            rc_params = self.__get_rc_params(image.filepath)
-            tiff_image_path = self.__get_temp_tiff_image_path(image)
+            if image is not None:
+                rc_params = self.__get_rc_params(image.filepath)
+                tiff_image_path = self.__get_temp_tiff_image_path(image)
 
-            tiff_image_for_rc = utils.get_absolute_path_for_rc(tiff_image_path)
-            bcPrint(tiff_image_for_rc)
+                tiff_image_for_rc = utils.get_absolute_path_for_rc(tiff_image_path)
+                bcPrint(tiff_image_for_rc)
 
-            try:
-                self.__create_normal_texture(image)
-            except:
-                bcPrint("Failed to invert green channel")
+                try:
+                    self.__create_normal_texture()
+                except:
+                    bcPrint("Failed to invert green channel")
+                
+                print("ALSOALSOALSOALSO")
+                print(rc_params)
+                rc_process = run_rc(self.__config.texture_rc_path,
+                                    tiff_image_for_rc,
+                                    rc_params)
 
-            rc_process = run_rc(self.__config.texture_rc_path,
-                                tiff_image_for_rc,
-                                rc_params)
+                # re-save the original image after running the RC to
+                # prevent the original one from getting lost
+                try:
+                    if ("_ddn" in image.name):
+                        image.save()
+                except:
+                    bcPrint("Failed to invert green channel")
 
-            # re-save the original image after running the RC to
-            # prevent the original one from getting lost
-            try:
-                if ("_ddn" in image.name):
-                    image.save()
-            except:
-                bcPrint("Failed to invert green channel")
-
-            rc_process.wait()
+                rc_process.wait()
 
         if self.__config.texture_rc_path:
             self.__save_tiffs()
 
         self.__remove_tmp_files()
 
-    def __create_normal_texture(self, image):
+    def __create_normal_texture(self):
         if ("_ddn" in image.name):
             # make a copy to prevent editing the original image
             temp_normal_image = image.copy()
@@ -336,7 +332,7 @@ class _TIFConverter:
         tiff_image_path = utils.get_path_with_new_extension(image.filepath,
                                                             "tif")
         tiff_image_absolute_path = utils.get_absolute_path(tiff_image_path)
-        tiff_file_name = os.path.basename(tiff_image_path)
+        tiff_file_name = os.path.basename(tiff_image_absolute_path)
 
         tmp_file_path = os.path.join(self.__tmp_dir, tiff_file_name)
 
@@ -346,16 +342,59 @@ class _TIFConverter:
 
         return tmp_file_path
 
+    #added to save tiff with custom compression
+    # def save_animage_as(image: bpy.types.Image, path: str=bpy.app.tempdir, name: str='Untitled', file_format: str='PNG', color: str='RGBA', color_depth: str='8', compression: int=15):
+    #     scene = bpy.data.scenes.new("Temp")
+        
+    #     show_name = image.name
+    #     image.name = name
+        
+    #     # use docs.blender.org/api/current/bpy.types.ImageFormatSettings.html for more properties
+    #     settings = scene.render.image_settings
+    #     settings.file_format = file_format  # Options: 'BMP', 'IRIS', 'PNG', 'JPEG', 'JPEG2000', 'TARGA', 'TARGA_RAW', 'CINEON', 'DPX', 'OPEN_EXR_MULTILAYER', 'OPEN_EXR', 'HDR', 'TIFF', 'WEBP'
+    #     settings.color_mode = color  # Options: 'BW', 'RGB', 'RGBA' (depends on file_format)
+    #     settings.color_depth = color_depth  # Options: '8', '10', '12', '16', '32' (depends on file_format)
+    #     settings.compression = compression  # Range: 0 - 100
+        
+    #     # save images with above settings
+    #     if not os.path.isfile(path):
+    #         path = os.path.join(path, name)
+    #     image.save_render(path, scene)
+        
+    #     bpy.data.scenes.remove(scene)
+    #     image.name = show_name
+
     def __save_as_tiff(self, image, tiff_file_path):
         originalPath = image.filepath
 
         try:
-            image.filepath_raw = tiff_file_path
-            image.file_format = 'TIFF'
-            image.save()
+            #scene = bpy.data.scenes.new("Temp")
+            settings = bpy.context.scene.render.image_settings
+            #store current settings
+            format = settings.file_format
+            mode = settings.color_mode
+            depth = settings.color_depth
+            
+            #SETTINGS AND SAVE
+            settings.file_format = 'TIFF'
+            settings.tiff_codec = 'LZW'
+            image.save_render(tiff_file_path)
+            
+            #restore settings
+            settings.file_format = format
+            settings.color_mode = mode
+            settings.color_depth = depth
+            
+            #DOES NOT WORK ANYMORE
+            # image.filepath_raw = tiff_file_path
+            # image.file_format = 'TIFF'
+            # image.save()
+            
 
         finally:
             image.filepath = originalPath
+
+    
 
     def __save_tiffs(self):
         for tmp_image, dest_image in self.__tmp_images.items():
@@ -390,6 +429,9 @@ def run_rc(rc_path, files_to_process, params=None):
     bcPrint("RC Parameters: {}".format(params))
     bcPrint("Processing File: {}".format(files_to_process))
 
+    print("THISTHISTHIS: ")
+    print(process_params)
+    
     try:
         run_object = subprocess.Popen(process_params)
     except:

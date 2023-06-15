@@ -1,4 +1,4 @@
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Name:        export_materials.py
 # Purpose:     Material exporter to CryEngine.
 #
@@ -9,27 +9,26 @@
 # Created:     30/09/2016
 # Copyright:   (c) Özkan Afacan 2016
 # License:     GPLv2+
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 if "bpy" in locals():
-    import importlib
-    importlib.reload(utils)
-    importlib.reload(material_utils)
+    import imp
+    imp.reload(utils)
+    imp.reload(material_utils)
 else:
     import bpy
-    from . import utils, material_utils
+    from io_bcry_exporter import utils, material_utils
 
-import copy
-import os
-import subprocess
-import threading
-import xml.dom.minidom
-from collections import OrderedDict
-from xml.dom.minidom import Document, Element, parse, parseString
+from io_bcry_exporter.outpipe import bcPrint
 
 from bpy_extras.io_utils import ExportHelper
-
-from .outpipe import bcPrint
+from collections import OrderedDict
+from xml.dom.minidom import Document, Element, parse, parseString
+import copy
+import os
+import threading
+import subprocess
+import xml.dom.minidom
 
 
 class CrytekMaterialExporter:
@@ -47,15 +46,15 @@ class CrytekMaterialExporter:
         materials = OrderedDict()
         for material_name, material in self._materials.items():
             for object_material in object_.data.materials:
-                if material.name == object_material.name:
+                if object_material is not None and  material.name == object_material.name:
                     materials[material] = material_name
 
         return materials
 
 
-    # ------------------------------------------------------------------------------
-    # Library Images:
-    # ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+# Library Images:
+#------------------------------------------------------------------------------
 
     def export_library_images(self, library_images):
         images = []
@@ -83,9 +82,9 @@ class CrytekMaterialExporter:
         if self._config.convert_textures:
             material_utils.convert_image_to_dds(images, self._config)
 
-    # ------------------------------------------------------------------------------
-    # Library Effects:
-    # ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+# Library Effects:
+#------------------------------------------------------------------------------
 
     def export_library_effects(self, library_effects):
         for material_name, material in self._materials.items():
@@ -181,7 +180,7 @@ class CrytekMaterialExporter:
         color = self._doc.createElement("color")
         color.setAttribute("sid", type_)
         col = material_utils.get_material_color(material, type_)
-        color_text = self._doc.createTextNode(str(col))
+        color_text = self._doc.createTextNode(col)
         color.appendChild(color_text)
         node.appendChild(color)
 
@@ -218,9 +217,9 @@ class CrytekMaterialExporter:
 
         return extra
 
-    # ------------------------------------------------------------------------------
-    # Library Materials:
-    # ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+# Library Materials:
+#------------------------------------------------------------------------------
 
     def export_library_materials(self, library_materials):
         for material_name, material in self._materials.items():

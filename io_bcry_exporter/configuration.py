@@ -1,4 +1,4 @@
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Name:        configuration.py
 # Purpose:     Stores CryBlend configuration settings
 #
@@ -9,18 +9,16 @@
 # Created:     02/10/2013
 # Copyright:   (c) Mikołaj Milej 2013
 # Licence:     GPLv2+
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 # <pep8-80 compliant>
 
 
+import bpy
+from io_bcry_exporter.outpipe import bcPrint
+from io_bcry_exporter.utils import get_filename
 import os
 import pickle
-
-import bpy
-
-from .outpipe import bcPrint
-from .utils import get_filename
 
 
 class __Configuration:

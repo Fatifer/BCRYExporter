@@ -12,14 +12,14 @@
 # <pep8-80 compliant>
 
 
-import math
-import re
-
+from bpy.props import *
+from bpy_extras.io_utils import ExportHelper
 import bpy
 import bpy.ops
 import bpy_extras
-from bpy.props import *
-from bpy_extras.io_utils import ExportHelper
+import re
+import math
+
 
 #------------------------------------------------------------------------------
 # User Defined Properties:

@@ -1,4 +1,4 @@
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Name:        material_utils.py
 # Purpose:     Holds material and texture functions.
 #
@@ -9,34 +9,32 @@
 # Created:     17/09/2016
 # Copyright:   (c) Özkan Afacan 2016
 # License:     GPLv2+
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 
 if "bpy" in locals():
-    import importlib
-    importlib.reload(utils)
-    importlib.reload(exceptions)
+    import imp
+    imp.reload(utils)
+    imp.reload(exceptions)
 else:
     import bpy
-    from . import utils, exceptions
+    from io_bcry_exporter import utils, exceptions
 
-import math
-import os
-import re
-import xml.dom.minidom
+from io_bcry_exporter.rc import RCInstance
+from io_bcry_exporter.outpipe import bcPrint
 from collections import OrderedDict
 from xml.dom.minidom import Document, Element, parse, parseString
-
 import bpy
+import re
+import math
+import os
+import xml.dom.minidom
 from mathutils import Color
 
-from .outpipe import bcPrint
-from .rc import RCInstance
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Generate Materials:
-# ------------------------------------------------------------------------------
-
+#------------------------------------------------------------------------------
 
 def generate_mtl_files(_config, materials=None):
     if materials is None:
@@ -150,50 +148,54 @@ def set_material_attributes(material, material_name, material_node):
     material_node.setAttribute("Name", get_material_name(material_name))
     material_node.setAttribute("MtlFlags", "524416")
 
+    try:
+        # get the Pricipled BSDF node
+        nodes = material.node_tree.nodes
+        principled = next(n for n in nodes if n.type == 'BSDF_PRINCIPLED')
+        principledFound = True
+    except:
+        principledFound = False
+
+    if principledFound:
+        specular = principled.inputs['Specular'].default_value
+        alpha = principled.inputs['Alpha'].default_value
+        emission = principled.inputs['Emission'].default_value
+        metallic = principled.inputs['Metallic'].default_value
+    else:
+        specular = 0.0
+        alpha = 1.0
+        emission = 1.0
+        metallic = 0.0
+
     shader = "Illum"
     if "physProxyNoDraw" == get_material_physic(material_name):
         shader = "Nodraw"
     material_node.setAttribute("Shader", shader)
     material_node.setAttribute("GenMask", "60400000")
-    material_node.setAttribute("StringGenMask", "%NORMAL_MAP%SPECULAR_MAP%SUBSURFACE_SCATTERING")
+    material_node.setAttribute(
+        "StringGenMask",
+        "%NORMAL_MAP%SPECULAR_MAP%SUBSURFACE_SCATTERING")
     material_node.setAttribute("SurfaceType", "")
     material_node.setAttribute("MatTemplate", "")
 
-    use_default = True
-    if material.use_nodes:
-        bsdf = material.node_tree.nodes.get('Principled BSDF')
-        if bsdf is not None:
-            diffuse = Color(
-                (bsdf.inputs['Base Color'].default_value[0],
-                 bsdf.inputs['Base Color'].default_value[1],
-                 bsdf.inputs['Base Color'].default_value[2])
-            )
-            specular = 1.0  # not support at the moment
-            opacity = bsdf.inputs['Alpha'].default_value
-            shininess = (1 - bsdf.inputs['Roughness'].default_value) * 255
-            use_default = False
-
-    if use_default:
-        diffuse = Color(
-            (material.diffuse_color[0],
-             material.diffuse_color[1],
-             material.diffuse_color[2])
-        )
-        specular = 1.0  # not support at the moment
-        opacity = material.diffuse_color[3]
-        shininess = (1 - material.roughness) * 255
-
-    material_node.setAttribute("Diffuse", color_to_xml_string(diffuse))
-    material_node.setAttribute("Specular", color_to_xml_string(specular))
-    material_node.setAttribute("Opacity", str(opacity))
-    material_node.setAttribute("Shininess", str(shininess))
+    material_node.setAttribute(
+        "Diffuse", color_to_xml_string(
+            material.diffuse_color))
+    if principledFound:
+        material_node.setAttribute(
+            "Specular", "{:f},{:f},{:f}".format(specular, specular, specular))
+    else:
+        material_node.setAttribute(
+            "Specular", color_to_xml_string(
+                material.specular_color))
+    material_node.setAttribute("Opacity", str(alpha))
+    material_node.setAttribute("Shininess", str(specular))
 
     material_node.setAttribute("vertModifType", "0")
     material_node.setAttribute("LayerAct", "1")
 
-    # if material.roughness:
-    #     emit_color = "1,1,1,{}".format(str(int(material.roughness * 100)))
-    #     material_node.setAttribute("Emittance", emit_color)
+    material_node.setAttribute("Emittance", color_to_xml_string(
+            emission))
 
 
 def set_public_params(_doc, material, material_node):
@@ -212,18 +214,25 @@ def add_textures(_doc, material, material_node, _config):
     specular = get_specular_texture(material)
     normal = get_normal_texture(material)
 
+    try:
+        mapping_node = material.node_tree.nodes['Mapping']
+    except:
+        mapping_node = None
+
     if diffuse:
         texture_node = _doc.createElement('Texture')
         texture_node.setAttribute("Map", "Diffuse")
         path = get_image_path_for_game(diffuse, _config.game_dir)
         texture_node.setAttribute("File", path)
+        if mapping_node:
+            texture_node.appendChild(get_texMod_Node(_doc, mapping_node))
         textures_node.appendChild(texture_node)
         bcPrint("Diffuse Path: {}.".format(path))
     else:
         if "physProxyNoDraw" != get_material_physic(material.name):
             texture_node = _doc.createElement('Texture')
             texture_node.setAttribute("Map", "Diffuse")
-            path = "%engine%/engineassets/textures/white.dds"
+            path = "textures/defaults/white.dds"
             texture_node.setAttribute("File", path)
             textures_node.appendChild(texture_node)
             bcPrint("Diffuse Path: {}.".format(path))
@@ -232,13 +241,17 @@ def add_textures(_doc, material, material_node, _config):
         texture_node.setAttribute("Map", "Specular")
         path = get_image_path_for_game(specular, _config.game_dir)
         texture_node.setAttribute("File", path)
+        if mapping_node:
+            texture_node.appendChild(get_texMod_Node(_doc, mapping_node))
         textures_node.appendChild(texture_node)
         bcPrint("Specular Path: {}.".format(path))
     if normal:
         texture_node = _doc.createElement('Texture')
-        texture_node.setAttribute("Map", "Normal")
+        texture_node.setAttribute("Map", "Bumpmap")
         path = get_image_path_for_game(normal, _config.game_dir)
         texture_node.setAttribute("File", path)
+        if mapping_node:
+            texture_node.appendChild(get_texMod_Node(_doc, mapping_node))
         textures_node.appendChild(texture_node)
         bcPrint("Normal Path: {}.".format(path))
 
@@ -247,19 +260,27 @@ def add_textures(_doc, material, material_node, _config):
 
     material_node.appendChild(textures_node)
 
+def get_texMod_Node(_doc, mapping_node):
+    rotation = mapping_node.inputs['Rotation'].default_value
+    scale = mapping_node.inputs['Scale'].default_value
+    texMod_node = _doc.createElement('TexMod')
+    texMod_node.setAttribute("TileU", str(scale.x))
+    texMod_node.setAttribute("TileV", str(scale.y))
 
-# ------------------------------------------------------------------------------
+    return texMod_node
+
+#------------------------------------------------------------------------------
 # Convert DDS:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def convert_image_to_dds(images, _config):
     converter = RCInstance(_config)
     converter.convert_tif(images)
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Collections:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def get_textures(material):
     images = []
@@ -274,7 +295,7 @@ def get_textures(material):
 def get_diffuse_texture(material):
     image = None
     try:
-        if bpy.context.scene.render.engine == 'CYCLES':
+        if bpy.context.scene.render.engine == 'CYCLES' or bpy.context.scene.render.engine == 'BLENDER_EEVEE':
             for node in material.node_tree.nodes:
                 if node.type == 'TEX_IMAGE':
                     if node.name == 'Image Texture' or \
@@ -298,7 +319,7 @@ def get_diffuse_texture(material):
 def get_specular_texture(material):
     image = None
     try:
-        if bpy.context.scene.render.engine == 'CYCLES':
+        if bpy.context.scene.render.engine == 'CYCLES' or bpy.context.scene.render.engine == 'BLENDER_EEVEE':
             for node in material.node_tree.nodes:
                 if node.type == 'TEX_IMAGE':
                     if node.name.lower().find('specular') != -1:
@@ -321,7 +342,7 @@ def get_specular_texture(material):
 def get_normal_texture(material):
     image = None
     try:
-        if bpy.context.scene.render.engine == 'CYCLES':
+        if bpy.context.scene.render.engine == 'CYCLES' or bpy.context.scene.render.engine == 'BLENDER_EEVEE':
             for node in material.node_tree.nodes:
                 if node.type == 'TEX_IMAGE':
                     if node.name.lower().find('normal') != -1:
@@ -341,34 +362,38 @@ def get_normal_texture(material):
     return None
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Conversions:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def color_to_string(color, a):
     if type(color) in (float, int):
         return "{:f} {:f} {:f} {:f}".format(color, color, color, a)
     elif type(color).__name__ == "Color":
         return "{:f} {:f} {:f} {:f}".format(color.r, color.g, color.b, a)
+    elif type(color).__name__ == "bpy_prop_array":
+        return "{:f} {:f} {:f} {:f}".format(color[0], color[1], color[2], a)
 
 
 def color_to_xml_string(color):
     if type(color) in (float, int):
         return "{:f},{:f},{:f}".format(color, color, color)
     elif type(color).__name__ == "Color":
+        return "{:f},{:f},{:f}".format(color.r, color.g, color.b)
+    elif type(color).__name__ == "bpy_prop_array":
         return "{:f},{:f},{:f}".format(color[0], color[1], color[2])
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Materials:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def get_material_counter():
     """Returns a dictionary with all CryExportNodes."""
     materialCounter = {}
-    for collection in bpy.data.collections:
-        if utils.is_export_node(collection):
-            materialCounter[collection.name] = 0
+    for group in bpy.data.collections:
+        if utils.is_export_node(group):
+            materialCounter[group.name] = 0
     return materialCounter
 
 
@@ -382,9 +407,9 @@ def get_material_physics():
     return physicsProperties
 
 
-def get_materials_per_group(collection):
+def get_materials_per_group(group):
     materials = []
-    for _objtmp in bpy.data.collections[collection].objects:
+    for _objtmp in bpy.data.collections[group].objects:
         for material in _objtmp.data.materials:
             if material is not None:
                 if material.name not in materials:
@@ -396,17 +421,35 @@ def get_material_color(material, type_):
     color = 0.0
     alpha = 1.0
 
+    try:
+        # get the Pricipled BSDF node
+        nodes = material.node_tree.nodes
+        principled = next(n for n in nodes if n.type == 'BSDF_PRINCIPLED')
+        principledFound = True
+    except:
+        principledFound = False
+
+    if principledFound == True:
+        alpha = principled.inputs['Alpha'].default_value
+        specular = principled.inputs['Specular'].default_value
+    else:
+        alpha = 1.0
+        specular = 1.0
+
     if type_ == "emission":
-        color = 0.0
+        if principledFound == True:
+            color = principled.inputs['Emission'].default_value
+        else:
+            color = Color ((1.0, 1.0, 1.0))
     elif type_ == "ambient":
-        color = 0.0
+        #color = material.ambient
+        color = Color ((1.0, 1.0, 1.0))
     elif type_ == "diffuse":
-        col = material.diffuse_color
-        color = Color((col[0], col[1], col[2]))
-        alpha = col[3]
+        color = material.diffuse_color
+        alpha = material.diffuse_color[3]
     elif type_ == "specular":
-        # specular = Color((material.metallic, material.metallic, material.metallic))
-        color = 1.0
+        #color = material.specular_color
+        color = Color ((specular,specular,specular))
 
     col = color_to_string(color, alpha)
     return col
@@ -414,7 +457,17 @@ def get_material_color(material, type_):
 
 def get_material_attribute(material, type_):
     if type_ == "shininess":
-        float = (1 - material.roughness) * 255
+        try:
+            # get the Pricipled BSDF node
+            nodes = material.node_tree.nodes
+            principled = next(n for n in nodes if n.type == 'BSDF_PRINCIPLED')
+            principledFound = True
+        except:
+            principledFound = False
+        if principledFound:
+            float = principled.inputs['Specular'].default_value
+        else:
+            float = 1.0
     elif type_ == "index_refraction":
         float = material.diffuse_color[3]
 
@@ -539,9 +592,9 @@ def replace_phys_material(material_name, phys):
         return "{}{}".format(material_name, phys)
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Textures:
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def is_valid_image(image):
     try:
