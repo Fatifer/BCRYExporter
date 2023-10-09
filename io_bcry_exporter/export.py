@@ -184,6 +184,7 @@ class CrytekDaeExporter:
         #rotationEuler = None
         
         bpy.ops.object.select_all(action='DESELECT')
+        bpy.context.scene.frame_set(1)
         
         AnimationList = []
         
@@ -194,7 +195,9 @@ class CrytekDaeExporter:
                     continue
                 bpy.ops.object.select_all(action='DESELECT')
 #if object has animation on it clear it and make sure animation is saved to fake user
-                if object_.animation_data:
+                #NoneTye Check
+                print(object_.animation_data.action is None)
+                if object_.animation_data and object_.animation_data.action is not None:
                     actionName = object_.animation_data.action.name
                     if object_.animation_data.action.use_fake_user == True:
                         hadFakeUser = True
