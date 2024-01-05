@@ -38,6 +38,7 @@ import sys
 import xml.dom.minidom
 import time
 import bmesh
+import numpy as np
 
 
 # Globals:
@@ -123,6 +124,41 @@ def join(*items):
         strings.append(str(item))
     return "".join(strings)
 
+
+def gamma_to_linear(srgb):
+    #TODO:Specular->Gamma to Linear
+    gamma = ((srgb + 0.055) / 1.055)**2.4
+    scale = srgb / 12.92
+    return np.where (srgb > 0.04045, gamma, scale)
+    
+    
+    # r = color.r / 255
+    # g = color.g / 255
+    # b = color.b / 255
+
+    # return ColorF(
+    # (float)(r <= 0.04045 ? (r / 12.92) : pow(((double)r + 0.055) / 1.055, 2.4)),
+    # (float)(g <= 0.04045 ? (g / 12.92) : pow(((double)g + 0.055) / 1.055, 2.4)),
+    # (float)(b <= 0.04045 ? (b / 12.92) : pow(((double)b + 0.055) / 1.055, 2.4)));
+
+def linear_to_gamma(linearColor):
+    #TODO:Specular->Linear to Gamma
+    np.clip(linearColor, 0, 1)
+    gamma = (1.055 * linearColor)**(1/2.4) - 0.055
+    scale = linearColor * 12.92
+    return np.where (linearColor > 0.0031308, gamma, scale)
+    
+    # float r = clamp_tpl(col.r, 0.0f, 1.0f);
+    # float g = clamp_tpl(col.g, 0.0f, 1.0f);
+    # float b = clamp_tpl(col.b, 0.0f, 1.0f);
+
+    # r = (float)(r <= 0.0031308 ? (12.92 * r)
+    #                             : (1.055 * pow((double)r, 1.0 / 2.4) - 0.055));
+    # g = (float)(g <= 0.0031308 ? (12.92 * g)
+    #                             : (1.055 * pow((double)g, 1.0 / 2.4) - 0.055));
+    # b = (float)(b <= 0.0031308 ? (12.92 * b)
+    #                             : (1.055 * pow((double)b, 1.0 / 2.4) - 0.055));
+    # return RGB(FtoI(r * 255.0f), FtoI(g * 255.0f), FtoI(b * 255.0f));
 
 #------------------------------------------------------------------------------
 # XSI Functions:
@@ -1649,6 +1685,31 @@ def write_input(name, offset, type_, semantic):
 
     return input
 
+def filter_bone_list(bones, armature, boneName):
+    bones[:] = (bone for bone in bones if bone.name != boneName)
+    return bones
+
+def add_and_apply_EdgeSplit_Modifier(objectname, use_edge_angle = True, use_edge_sharp = True, split_angle = 0.523599, apply = False):
+    mod = None
+    obj = bpy.data.objects[objectname]
+
+    if obj.modifiers.get("EDGE_SPLIT"): 
+        mod = obj.modifiers.get("EDGE_SPLIT")
+    if mod is None:
+        # otherwise add a modifier to selected object
+        mod = obj.modifiers.new("EDGE_SPLIT", 'EDGE_SPLIT')
+        print()
+        print("EdgeSplit Modifier added to encounter bone mapping length does not match vertex positions error")
+        if mod.type == 'EDGE_SPLIT' and mod.show_viewport:
+                    use_edge_angle = mod.use_edge_angle
+                    use_edge_sharp = mod.use_edge_sharp
+                    split_angle = mod.split_angle
+    if(apply):
+        obj.select_set(True)                    
+        bpy.ops.object.modifier_apply(modifier="EDGE_SPLIT")
+        bpy.ops.object.select_all(action="DESELECT")
+    
+    return True
 
 # this is needed if you want to access more than the first def
 if __name__ == "__main__":

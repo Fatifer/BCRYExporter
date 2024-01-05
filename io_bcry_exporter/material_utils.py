@@ -157,9 +157,10 @@ def set_material_attributes(material, material_name, material_node):
         principledFound = False
 
     if principledFound:
-        specular = principled.inputs['Specular'].default_value
+        specular = principled.inputs['Specular IOR Level'].default_value
+        specular = utils.gamma_to_linear(specular)
         alpha = principled.inputs['Alpha'].default_value
-        emission = principled.inputs['Emission'].default_value
+        emission = principled.inputs['Emission Color'].default_value
         metallic = principled.inputs['Metallic'].default_value
     else:
         specular = 0.0
@@ -431,14 +432,14 @@ def get_material_color(material, type_):
 
     if principledFound == True:
         alpha = principled.inputs['Alpha'].default_value
-        specular = principled.inputs['Specular'].default_value
+        specular = principled.inputs['Specular IOR Level'].default_value
     else:
         alpha = 1.0
         specular = 1.0
 
     if type_ == "emission":
         if principledFound == True:
-            color = principled.inputs['Emission'].default_value
+            color = principled.inputs['Emission Color'].default_value
         else:
             color = Color ((1.0, 1.0, 1.0))
     elif type_ == "ambient":
@@ -450,7 +451,8 @@ def get_material_color(material, type_):
     elif type_ == "specular":
         #color = material.specular_color
         color = Color ((specular,specular,specular))
-
+    
+    #TODO: Convert Specular to linear space (ulits.py)
     col = color_to_string(color, alpha)
     return col
 
@@ -465,7 +467,7 @@ def get_material_attribute(material, type_):
         except:
             principledFound = False
         if principledFound:
-            float = principled.inputs['Specular'].default_value
+            float = principled.inputs['Specular IOR Level'].default_value
         else:
             float = 1.0
     elif type_ == "index_refraction":

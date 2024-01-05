@@ -193,10 +193,22 @@ class CrytekDaeExporter:
             for object_ in group.objects: 
                 if object_.type != 'MESH':
                     continue
+                
+                #EdgeSplit
+                use_edge_angle = False
+                use_edge_sharp = False
+                split_angle = 0.523599
+                if object_.data.use_auto_smooth:
+                    use_edge_angle = True
+                    use_edge_sharp = True
+                    split_angle = object_.data.auto_smooth_angle
+                utils.add_and_apply_EdgeSplit_Modifier(object_.name, use_edge_angle, use_edge_sharp, split_angle, True)
+                #EdgeSplit_END
+                
                 bpy.ops.object.select_all(action='DESELECT')
 #if object has animation on it clear it and make sure animation is saved to fake user
                 #NoneTye Check
-                print(object_.animation_data.action is None)
+                #print(object_.animation_data.action is None)
                 if object_.animation_data and object_.animation_data.action is not None:
                     actionName = object_.animation_data.action.name
                     if object_.animation_data.action.use_fake_user == True:
@@ -358,7 +370,8 @@ class CrytekDaeExporter:
         split_angle = 0
         use_edge_angle = False
         use_edge_sharp = False
-
+        #TODO: Add Split Modifier here?
+        #utils.add_and_apply_EdgeSplit_Modifier(object_.name, use_edge_angle, use_edge_sharp, split_angle, False)
         if object_.data.use_auto_smooth:
             use_edge_angle = True
             use_edge_sharp = True
@@ -607,6 +620,7 @@ class CrytekDaeExporter:
     def _process_bone_weights(self, object_, armature, skin_node):
 
         bones = utils.get_bones(armature)
+        bones = utils.filter_bone_list(bones, armature, "Locator_Locomotion")#filter LocationLocomotion
         group_weights = []
         vw = ""
         vertex_groups_lengths = ""
