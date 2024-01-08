@@ -157,7 +157,7 @@ def set_material_attributes(material, material_name, material_node):
         principledFound = False
 
     if principledFound:
-        if (3, 99, 0) > bpy.app.version:            
+        if (3, 99, 0) <= bpy.app.version:            
             SpecularStringComaptibility = 'Specular IOR Level'
         else:
             SpecularStringComaptibility = 'Specular'
@@ -436,7 +436,7 @@ def get_material_color(material, type_):
 
     if principledFound == True:
         alpha = principled.inputs['Alpha'].default_value
-        if (3, 99, 0) > bpy.app.version:            
+        if (3, 99, 0) <= bpy.app.version:            
             SpecularStringComaptibility = 'Specular IOR Level'
         else:
             SpecularStringComaptibility = 'Specular'
@@ -475,7 +475,7 @@ def get_material_attribute(material, type_):
         except:
             principledFound = False
         if principledFound:
-            if (3, 99, 0) > bpy.app.version:            
+            if (3, 99, 0) <= bpy.app.version:            
                 SpecularStringComaptibility = 'Specular IOR Level'
             else:
                 SpecularStringComaptibility = 'Specular'
