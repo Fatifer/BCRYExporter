@@ -157,7 +157,11 @@ def set_material_attributes(material, material_name, material_node):
         principledFound = False
 
     if principledFound:
-        specular = principled.inputs['Specular IOR Level'].default_value
+        if (3, 99, 0) > bpy.app.version:            
+            SpecularStringComaptibility = 'Specular IOR Level'
+        else:
+            SpecularStringComaptibility = 'Specular'
+        specular = principled.inputs[SpecularStringComaptibility].default_value
         specular = utils.gamma_to_linear(specular)
         alpha = principled.inputs['Alpha'].default_value
         emission = principled.inputs['Emission Color'].default_value
@@ -432,7 +436,11 @@ def get_material_color(material, type_):
 
     if principledFound == True:
         alpha = principled.inputs['Alpha'].default_value
-        specular = principled.inputs['Specular IOR Level'].default_value
+        if (3, 99, 0) > bpy.app.version:            
+            SpecularStringComaptibility = 'Specular IOR Level'
+        else:
+            SpecularStringComaptibility = 'Specular'
+        specular = principled.inputs[SpecularStringComaptibility].default_value
     else:
         alpha = 1.0
         specular = 1.0
@@ -452,7 +460,7 @@ def get_material_color(material, type_):
         #color = material.specular_color
         color = Color ((specular,specular,specular))
     
-    #TODO: Convert Specular to linear space (ulits.py)
+    #TODO: Convert to linear space? (ulits.py)
     col = color_to_string(color, alpha)
     return col
 
@@ -467,7 +475,11 @@ def get_material_attribute(material, type_):
         except:
             principledFound = False
         if principledFound:
-            float = principled.inputs['Specular IOR Level'].default_value
+            if (3, 99, 0) > bpy.app.version:            
+                SpecularStringComaptibility = 'Specular IOR Level'
+            else:
+                SpecularStringComaptibility = 'Specular'
+            float = principled.inputs[SpecularStringComaptibility].default_value
         else:
             float = 1.0
     elif type_ == "index_refraction":
