@@ -3075,7 +3075,7 @@ class Export(bpy.types.Operator, ExportHelper):
         bcPrint(Configuration.rc_path, 'debug', True)
         try:
             config = Export.Config(config=self)
-
+            print(config)
             if self.run_in_profiler:
                 import cProfile
                 cProfile.runctx('export.save(config)', {},
@@ -3541,23 +3541,23 @@ class CryUtilitiesPanel(View3DPanel, Panel):
             text="Box",
             icon="META_CUBE")
         add_box_proxy.type_ = "box"
-        add_capsule_proxy = row.operator(
-            "object.add_proxy",
-            text="Capsule",
-            icon="META_CAPSULE")
-        add_capsule_proxy.type_ = "capsule"
+        # add_capsule_proxy = row.operator(
+        #     "object.add_proxy",
+        #     text="Capsule",
+        #     icon="META_CAPSULE")
+        # add_capsule_proxy.type_ = "capsule"
 
-        row = col.row(align=True)
-        add_cylinder_proxy = row.operator(
-            "object.add_proxy",
-            text="Cylinder",
-            icon="META_ELLIPSOID")
-        add_cylinder_proxy.type_ = "cylinder"
-        add_sphere_proxy = row.operator(
-            "object.add_proxy",
-            text="Sphere",
-            icon="META_BALL")
-        add_sphere_proxy.type_ = "sphere"
+        # row = col.row(align=True)
+        # add_cylinder_proxy = row.operator(
+        #     "object.add_proxy",
+        #     text="Cylinder",
+        #     icon="META_ELLIPSOID")
+        # add_cylinder_proxy.type_ = "cylinder"
+        # add_sphere_proxy = row.operator(
+        #     "object.add_proxy",
+        #     text="Sphere",
+        #     icon="META_BALL")
+        # add_sphere_proxy.type_ = "sphere"
         col.separator()
         col.separator()
 
@@ -3580,55 +3580,55 @@ class CryUtilitiesPanel(View3DPanel, Panel):
             icon="MOD_SIMPLEDEFORM")
 
 
-class BoneUtilitiesPanel(View3DPanel, Panel):
-    bl_label = "Bone Utilities"
-    bl_idname = 'VIEW3D_PT_BONEUTILITIES'
+# class BoneUtilitiesPanel(View3DPanel, Panel):
+#     bl_label = "Bone Utilities"
+#     bl_idname = 'VIEW3D_PT_BONEUTILITIES'
 
-    def draw(self, context):
-        layout = self.layout
-        col = layout.column(align=True)
+#     def draw(self, context):
+#         layout = self.layout
+#         col = layout.column(align=True)
 
-        #TODO: GetMeInThere
-        col.operator(
-            "armature.add_export_property",
-            text="Add Export Property To Bones",
-            icon="BONE_DATA")
-        col.operator(
-            "armature.remove_export_property",
-            text="Remove Export Property To Bones",
-            icon="BONE_DATA")
-        col.operator(
-            "armature.add_root_bone",
-            text="Add Root Bone",
-            icon="BONE_DATA")
-        col.operator(
-            "armature.add_primitive_mesh",
-            text="Add Primitive Mesh",
-            icon="BONE_DATA")
-        col.operator(
-            "armature.add_locator_locomotion",
-            text="Add Locator Locomotion",
-            icon="BONE_DATA")
-        col.separator()
+#         #TODO: GetMeInThere
+#         col.operator(
+#             "armature.add_export_property",
+#             text="Add Export Property To Bones",
+#             icon="BONE_DATA")
+#         col.operator(
+#             "armature.remove_export_property",
+#             text="Remove Export Property To Bones",
+#             icon="BONE_DATA")
+#         col.operator(
+#             "armature.add_root_bone",
+#             text="Add Root Bone",
+#             icon="BONE_DATA")
+#         col.operator(
+#             "armature.add_primitive_mesh",
+#             text="Add Primitive Mesh",
+#             icon="BONE_DATA")
+#         col.operator(
+#             "armature.add_locator_locomotion",
+#             text="Add Locator Locomotion",
+#             icon="BONE_DATA")
+#         col.separator()
 
-        col.operator(
-            "object.edit_inverse_kinematics",
-            text="Edit Bone Physic and IKs",
-            icon="OUTLINER_DATA_ARMATURE")
-        col.operator(
-            "ops.apply_animation_scaling",
-            text="Apply Animation Scaling",
-            icon="OUTLINER_DATA_ARMATURE")
-        col.separator()
+#         col.operator(
+#             "object.edit_inverse_kinematics",
+#             text="Edit Bone Physic and IKs",
+#             icon="OUTLINER_DATA_ARMATURE")
+#         col.operator(
+#             "ops.apply_animation_scaling",
+#             text="Apply Animation Scaling",
+#             icon="OUTLINER_DATA_ARMATURE")
+#         col.separator()
 
-        col.operator(
-            "armature.physicalize_skeleton",
-            text="Physicalize Skeleton",
-            icon="PHYSICS")
-        col.operator(
-            "armature.clear_skeleton_physics",
-            text="Clear Skeleton Physics",
-            icon="PHYSICS")
+#         col.operator(
+#             "armature.physicalize_skeleton",
+#             text="Physicalize Skeleton",
+#             icon="PHYSICS")
+#         col.operator(
+#             "armature.clear_skeleton_physics",
+#             text="Clear Skeleton Physics",
+#             icon="PHYSICS")
 
 
 class MeshUtilitiesPanel(View3DPanel, Panel):
@@ -3646,36 +3646,36 @@ class MeshUtilitiesPanel(View3DPanel, Panel):
         col.separator()
 
         col.separator()
-        col.operator(
-            "mesh.find_weightless",
-            text="Find Weightless",
-            icon="WPAINT_HLT")
-        col.operator(
-            "mesh.remove_weight",
-            text="Remove Weight",
-            icon="WPAINT_HLT")
-        col.separator()
+        # col.operator(
+        #     "mesh.find_weightless",
+        #     text="Find Weightless",
+        #     icon="WPAINT_HLT")
+        # col.operator(
+        #     "mesh.remove_weight",
+        #     text="Remove Weight",
+        #     icon="WPAINT_HLT")
+        # col.separator()
 
-        col.separator()
-        col.operator(
-            "object.find_degenerate_faces",
-            text="Find Degenerate",
-            icon='ZOOM_ALL')
-        col.operator(
-            "mesh.find_multiface_lines",
-            text="Find Multi-face",
-            icon='ZOOM_ALL')
-        col.separator()
+        # col.separator()
+        # col.operator(
+        #     "object.find_degenerate_faces",
+        #     text="Find Degenerate",
+        #     icon='ZOOM_ALL')
+        # col.operator(
+        #     "mesh.find_multiface_lines",
+        #     text="Find Multi-face",
+        #     icon='ZOOM_ALL')
+        # col.separator()
 
-        col.separator()
-        col.operator(
-            "scene.find_no_uvs",
-            text="Find All Objects with No UV's",
-            icon="UV_FACESEL")
-        col.operator(
-            "mesh.add_uv_texture",
-            text="Add UV's to Objects",
-            icon="UV_FACESEL")
+        # col.separator()
+        # col.operator(
+        #     "scene.find_no_uvs",
+        #     text="Find All Objects with No UV's",
+        #     icon="UV_FACESEL")
+        # col.operator(
+        #     "mesh.add_uv_texture",
+        #     text="Add UV's to Objects",
+        #     icon="UV_FACESEL")
 
 
 class MaterialUtilitiesPanel(View3DPanel, Panel):
@@ -4216,7 +4216,7 @@ def get_classes_to_register():
 
         ExportUtilitiesPanel,
         CryUtilitiesPanel,
-        BoneUtilitiesPanel,
+        #BoneUtilitiesPanel,
         MeshUtilitiesPanel,
         MaterialUtilitiesPanel,
         UserDefinedPropertiesPanel,

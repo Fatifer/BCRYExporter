@@ -87,7 +87,7 @@ class CrytekDaeExporter:
         self._export_scene(root_element)
 
         converter = RCInstance(self._config)
-        converter.convert_dae(self._doc)
+        converter.convert_dae(self._doc)#TODO:CONVERT DAE And Write config
 
         write_scripts(self._config)
 
@@ -198,10 +198,10 @@ class CrytekDaeExporter:
                 use_edge_angle = False
                 use_edge_sharp = False
                 split_angle = 0.523599
-                if object_.data.use_auto_smooth:
-                    use_edge_angle = True
-                    use_edge_sharp = True
-                    split_angle = object_.data.auto_smooth_angle
+                # if object_.data.use_auto_smooth: #REMOVED in Blender 4.1
+                use_edge_angle = True
+                use_edge_sharp = True
+                split_angle = 30.0 #object_.data.auto_smooth_angle
                 utils.add_and_apply_EdgeSplit_Modifier(object_.name, use_edge_angle, use_edge_sharp, split_angle, True)
                 #EdgeSplit_END
                 
@@ -372,16 +372,16 @@ class CrytekDaeExporter:
         use_edge_sharp = False
         #TODO: Add Split Modifier here?
         #utils.add_and_apply_EdgeSplit_Modifier(object_.name, use_edge_angle, use_edge_sharp, split_angle, False)
-        if object_.data.use_auto_smooth:
-            use_edge_angle = True
-            use_edge_sharp = True
-            split_angle = object_.data.auto_smooth_angle
-        else:
-            for modifier in object_.modifiers:
-                if modifier.type == 'EDGE_SPLIT' and modifier.show_viewport:
-                    use_edge_angle = modifier.use_edge_angle
-                    use_edge_sharp = modifier.use_edge_sharp
-                    split_angle = modifier.split_angle
+        #if object_.data.use_auto_smooth: #REMOVED in Blender 4.1
+        use_edge_angle = True
+        use_edge_sharp = True
+        split_angle = 30.0 #object_.data.auto_smooth_angle
+#        else:
+        # for modifier in object_.modifiers:
+        #     if modifier.type == 'EDGE_SPLIT' and modifier.show_viewport:
+        #         use_edge_angle = modifier.use_edge_angle
+        #         use_edge_sharp = modifier.use_edge_sharp
+        #         split_angle = modifier.split_angle
 
         float_normals = None
         if self._config.custom_normals:
@@ -595,6 +595,8 @@ class CrytekDaeExporter:
         id_ = "{!s}_{!s}-joints".format(armature.name, object_.name)
         bone_names = []
         for bone in bones:
+            if not "ExportBone" in bone:#TODO: EXPORTBONE
+                continue
             props_name = self._create_properties_name(bone, group)
             bone_name = "{!s}{!s}".format(bone.name, props_name)
             bone_names.append(bone_name)
@@ -605,9 +607,9 @@ class CrytekDaeExporter:
 
         bones = utils.get_bones(armature)
         bone_matrices = []
-        for bone in armature.pose.bones: #TODO: EVERYWHERE it should check if "ExportBone" in bone
-            # if not "ExportBone" in bone:
-                # continue
+        for bone in armature.pose.bones:
+            if not "ExportBone" in bone:#TODO: EXPORTBONE
+                continue
         
 
             bone_matrix = utils.transform_bone_matrix(bone)
@@ -627,15 +629,18 @@ class CrytekDaeExporter:
         vertex_count = 0
         bone_list = {}
 
+
         for bone_id, bone in enumerate(bones):
-            bone_list[bone.name] = bone_id #TODO:BoneList
+            if not "ExportBone" in bone:#TODO: EXPORTBONE
+                continue
+            bone_list[bone.name] = bone_id #indexcounter #TODO:BoneList 
 
 
         for vertex in object_.data.vertices:
             vertex_group_count = 0
             for vgroup in vertex.groups:
                 group_name = object_.vertex_groups[vgroup.group].name
-                # print(group_name)
+                print(group_name)
                 # if (vgroup.weight == 0 ):
                 #     print("SKIPPED FOR-WEIGHT--------------------------------------------:")
                 #     print(group_name)
@@ -714,7 +719,7 @@ class CrytekDaeExporter:
 # ---------------------------------------------------------------------
 
     def _export_library_visual_scenes(self, parent_element):
-        current_element = self._doc.createElement("library_visual_scenes")
+        current_element = self._doc.createElement("library_visual_scenes")#TODO: THERETHERETHERETHERETHERE
         visual_scene = self._doc.createElement("visual_scene")
         visual_scene.setAttribute("id", "scene")
         visual_scene.setAttribute("name", "scene")

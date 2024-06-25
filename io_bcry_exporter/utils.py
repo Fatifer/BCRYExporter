@@ -314,25 +314,27 @@ def clear_bmesh(object_, backup_info):
 
 
 def bcry_split_modifier(object_):
-    if object_.data.use_auto_smooth:
-        modifier_unique_name = 'BCRY_EDGE_SPLIT'
+    pass
+    # if object_.data.use_auto_smooth:
+    #     modifier_unique_name = 'BCRY_EDGE_SPLIT'
 
-        object_.modifiers.new(modifier_unique_name, 'EDGE_SPLIT')
-        edge_split_modifier = object_.modifiers.get(modifier_unique_name)
-        edge_split_modifier.use_edge_angle = True
-        edge_split_modifier.use_edge_sharp = True
-        edge_split_modifier.split_angle = object_.data.auto_smooth_angle
+    #     object_.modifiers.new(modifier_unique_name, 'EDGE_SPLIT')
+    #     edge_split_modifier = object_.modifiers.get(modifier_unique_name)
+    #     edge_split_modifier.use_edge_angle = True
+    #     edge_split_modifier.use_edge_sharp = True
+    #     edge_split_modifier.split_angle = object_.data.auto_smooth_angle
 
-        object_.data.use_auto_smooth = False
+    #     object_.data.use_auto_smooth = False
 
 
 def remove_bcry_split_modifier(object_):
-    modifier_unique_name = 'BCRY_EDGE_SPLIT'
+    pass
+    # modifier_unique_name = 'BCRY_EDGE_SPLIT'
 
-    edge_split_modifier = object_.modifiers.get(modifier_unique_name)
-    if edge_split_modifier:
-        object_.data.use_auto_smooth = True
-        object_.modifiers.remove(edge_split_modifier)
+    # edge_split_modifier = object_.modifiers.get(modifier_unique_name)
+    # if edge_split_modifier:
+    #     object_.data.use_auto_smooth = True
+    #     object_.modifiers.remove(edge_split_modifier)
 
 
 def get_tessfaces(bmesh_):
@@ -950,11 +952,11 @@ def add_fakebones(group=None):
 
     skeleton.pose_position = 'REST'
     time.sleep(0.5)
-
+    print("PoseBone FakeBone:")
     scene.frame_set(scene.frame_start)
-    for pose_bone in armature.pose.bones:#TODO: EVERYWHERE FakeBones dont know if it makes sense REWRITE: if "ExportBone" in pose_bone
-        # if not "ExportBone" in pose_bone:
-        #     continue
+    for pose_bone in armature.pose.bones:
+        if not "ExportBone" in pose_bone:#TODO: EXPORTBONE
+            continue
         
         
         bone_matrix = transform_bone_matrix(pose_bone)
@@ -969,6 +971,7 @@ def add_fakebones(group=None):
         bpy.context.view_layer.objects.active = armature # changed from scene.objects.active = armature to and with line below :)
         armature.select_set(state = True) #armature.select_set(state = True, view_layer = None)
         armature.data.bones.active = pose_bone.bone
+        #print(armature.data.bones.active.name)#PoseBone FakeBone:
         bpy.ops.object.parent_set(type='BONE_RELATIVE') 
 
         if group:
@@ -1436,17 +1439,19 @@ def get_armature_from_node(group):
 
 
 def activate_all_bone_layers(armature):
-    layers = []
-    for index in range(0, 32):
-        layers.append(armature.data.layers[index])
-        armature.data.layers[index] = True
+    pass #TODO: bone layers are gone in Blender 4.0
+    # layers = []
+    # for index in range(0, 32):
+    #     layers.append(armature.data.layers[index])
+    #     armature.data.layers[index] = True
 
-    return layers
+    # return layers
 
 
 def recover_bone_layers(armature, layers):
-    for index in range(0, 32):
-        armature.data.layers[index] = layers[index]
+    pass #TODO: bone layers are gone in Blender 4.0
+    # for index in range(0, 32):
+    #     armature.data.layers[index] = layers[index]
 
 
 #------------------------------------------------------------------------------
