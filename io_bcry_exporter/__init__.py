@@ -588,6 +588,25 @@ class GenerateLODs(bpy.types.Operator):
 
         return {'FINISHED'}
 
+class ClearAnimationData(bpy.types.Operator):#TODO: ClearAnimData Operator
+    '''Click to clear animation data on selected mesh.'''
+    bl_label = "Clear Animation Data"
+    bl_idname = "object.clearanimationdata"
+
+    def executable(self, context):
+        object_ = bpy.context.active_object
+        
+        if not object_ or object_.type != 'MESH':
+            self.report({'ERROR'}, "Please select a mesh object!")
+            return {'FINISHED'}
+        
+        self.__clearAnimation(self, object_)
+        
+    def __clearAnimation(self, object_):
+        object_.animation_data_clear()
+        
+
+
 
 class AddProxy(bpy.types.Operator):
     '''Click to add proxy to selected mesh. The proxy will always display as a box but will \
@@ -3541,6 +3560,16 @@ class CryUtilitiesPanel(View3DPanel, Panel):
             text="Box",
             icon="META_CUBE")
         add_box_proxy.type_ = "box"
+
+        col.label(text="Animation Data", icon="ARMATURE_DATA")
+        col.separator()
+        row = col.row(align=True)
+        clear_animation_data = row.operator(
+            "object.clearanimationdata",
+            text="ClearAnimationData",
+            icon="PANEL_CLOSE")
+
+
         # add_capsule_proxy = row.operator(
         #     "object.add_proxy",
         #     text="Capsule",
@@ -4177,6 +4206,7 @@ def get_classes_to_register():
         AddLocatorLocomotion,
         AddPrimitiveMesh,
         AddProxy,
+        ClearAnimationData,
         AddBreakableJoint,
         AddBranch,
         AddBranchJoint,
