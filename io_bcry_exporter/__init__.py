@@ -591,19 +591,30 @@ class GenerateLODs(bpy.types.Operator):
 class ClearAnimationData(bpy.types.Operator):#TODO: ClearAnimData Operator
     '''Click to clear animation data on selected mesh.'''
     bl_label = "Clear Animation Data"
-    bl_idname = "object.clearanimationdata"
+    bl_idname = "object.clear_animation_data"
 
-    def executable(self, context):
+    def execute(self, context):
         object_ = bpy.context.active_object
         
         if not object_ or object_.type != 'MESH':
             self.report({'ERROR'}, "Please select a mesh object!")
             return {'FINISHED'}
         
-        self.__clearAnimation(self, object_)
-        
+        self.__clearAnimation(object_)
+        return {'FINISHED'}
+
     def __clearAnimation(self, object_):
+        if object_.animation_data and object_.animation_data.action is not None:
+            object_.animation_data.action = None
         object_.animation_data_clear()
+
+
+    def invoke(self, context, event):
+        if context.object is None or context.object.type != "MESH" or context.object.mode != "OBJECT":
+            self.report({'ERROR'}, "Select a mesh in OBJECT mode.")
+            return {'FINISHED'}
+
+        return self.execute(context)
         
 
 
@@ -3564,8 +3575,8 @@ class CryUtilitiesPanel(View3DPanel, Panel):
         col.label(text="Animation Data", icon="ARMATURE_DATA")
         col.separator()
         row = col.row(align=True)
-        clear_animation_data = row.operator(
-            "object.clearanimationdata",
+        row.operator(
+            "object.clear_animation_data",
             text="ClearAnimationData",
             icon="PANEL_CLOSE")
 
