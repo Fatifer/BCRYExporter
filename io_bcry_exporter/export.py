@@ -973,7 +973,7 @@ class CrytekDaeExporter:
         trans = self._doc.createElement("translate")
         trans.setAttribute("sid", "translation")
         trans_text = self._doc.createTextNode("{:f} {:f} {:f}".format(
-            * object_.location))
+            * object_.matrix_local.to_translation()))#TODO: worldcoordinate without childparent (.location)
         trans.appendChild(trans_text)
 
         return trans

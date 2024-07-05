@@ -159,7 +159,7 @@ class _DAEConverter:
                 origin = 0, 0, 0
                 rotation = 1, 0, 0, 0
             else:
-                origin = group.objects[0].location
+                origin = group.objects[0].matrix_local.to_translation() #TODO: worldcoordinate (.location)
                 rotation = group.objects[0].delta_rotation_quaternion
 
             object = createAttributes(

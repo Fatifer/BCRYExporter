@@ -257,7 +257,18 @@ class CrytekDaeAnimationExporter(export.CrytekDaeExporter):
                     khly = keyframe_point.handle_left[1]
                     khrx = keyframe_point.handle_right[0]
                     khry = keyframe_point.handle_right[1]
-                    frame, value = keyframe_point.co
+                    frame, value = keyframe_point.co  #TODO: DONE!
+
+                    #substract parent location to get the keyframes that cryengine needs                    
+                    if attribute_type == "location" and object_.parent is not None:
+                        match axis:
+                            case "X":
+                                value = value - object_.parent.location.x
+                            case "Y":
+                                value = value - object_.parent.location.y
+                            case "Z":
+                                value = value - object_.parent.location.z
+
 
                     sources["input"].append(utils.frame_to_time(frame))
                     sources["output"].append(value * multiplier)
