@@ -595,8 +595,8 @@ class CrytekDaeExporter:
         id_ = "{!s}_{!s}-joints".format(armature.name, object_.name)
         bone_names = []
         for bone in bones:
-            if not "ExportBone" in bone:#TODO: EXPORTBONE
-                continue
+            # if not "ExportBone" in bone:#TODO: EXPORTBONE
+            #     continue
             props_name = self._create_properties_name(bone, group)
             bone_name = "{!s}{!s}".format(bone.name, props_name)
             bone_names.append(bone_name)
@@ -608,8 +608,8 @@ class CrytekDaeExporter:
         bones = utils.get_bones(armature)
         bone_matrices = []
         for bone in armature.pose.bones:
-            if not "ExportBone" in bone:#TODO: EXPORTBONE
-                continue
+            # if not "ExportBone" in bone:#TODO: EXPORTBONE
+            #     continue
         
 
             bone_matrix = utils.transform_bone_matrix(bone)
@@ -631,8 +631,8 @@ class CrytekDaeExporter:
 
 
         for bone_id, bone in enumerate(bones):
-            if not "ExportBone" in bone:#TODO: EXPORTBONE
-                continue
+            # if not "ExportBone" in bone:#TODO: EXPORTBONE
+            #     continue
             bone_list[bone.name] = bone_id #indexcounter #TODO:BoneList 
 
 
