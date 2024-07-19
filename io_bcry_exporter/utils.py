@@ -955,8 +955,8 @@ def add_fakebones(group=None):
     print("PoseBone FakeBone:")
     scene.frame_set(scene.frame_start)
     for pose_bone in armature.pose.bones:
-        if not "ExportBone" in pose_bone:#TODO: EXPORTBONE
-            continue
+        #if not "ExportBone" in pose_bone:#TODO: EXPORTBONE
+        #    continue
         
         
         bone_matrix = transform_bone_matrix(pose_bone)
@@ -1081,7 +1081,7 @@ def set_keyframe(armature, frame, location_list, rotation_list):
         
         index = frame - bpy.context.scene.frame_start
 
-        fakeBone = bpy.data.objects[bone.name]
+        fakeBone = bpy.data.objects[bone.name]#xxy
 
         fakeBone.location = location_list[index][bone.name]
         fakeBone.rotation_euler = rotation_list[index][bone.name]
