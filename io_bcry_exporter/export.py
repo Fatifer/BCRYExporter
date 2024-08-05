@@ -24,6 +24,7 @@ else:
     import bpy
     from io_bcry_exporter import utils, export_materials, udp, exceptions
 
+from typing import Self
 from io_bcry_exporter.rc import RCInstance
 from io_bcry_exporter.outpipe import bcPrint
 from io_bcry_exporter.utils import join
@@ -1224,6 +1225,27 @@ class CrytekDaeExporter:
         parent_element.appendChild(scene)
 
 
+    # def write_scripts(self, config):
+    #     filepath = bpy.path.ensure_ext(config.filepath, ".dae")
+    #     if not config.make_chrparams and not config.make_cdf:
+    #         return
+
+    #     dae_path = utils.get_absolute_path_for_rc(filepath)
+    #     output_path = os.path.dirname(dae_path)
+
+    #     for chr_name in utils.get_chr_names(self._config.export_selected_nodes):
+    #         if config.make_chrparams:
+    #             filepath = "{}/{}.chrparams".format(output_path, chr_name)
+    #             contents = utils.generate_file_contents("chrparams")
+    #             utils.generate_xml(filepath, contents)
+    #         if config.make_cdf:
+    #             filepath = "{}/{}.cdf".format(output_path, chr_name)
+    #             contents = utils.generate_file_contents("cdf")
+    #             utils.generate_xml(filepath, contents)
+        
+    def getLocalConfig(self):#added because of write_scripts---> did not work :(
+        return self._config.export_selected_nodes
+
 def write_scripts(config):
     filepath = bpy.path.ensure_ext(config.filepath, ".dae")
     if not config.make_chrparams and not config.make_cdf:
@@ -1241,6 +1263,7 @@ def write_scripts(config):
             filepath = "{}/{}.cdf".format(output_path, chr_name)
             contents = utils.generate_file_contents("cdf")
             utils.generate_xml(filepath, contents)
+
 
 
 def save(config):

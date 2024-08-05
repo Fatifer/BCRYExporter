@@ -2548,8 +2548,8 @@ class PhysicalizeSkeleton(bpy.types.Operator):
         bpy.ops.object.mode_set(mode='EDIT')
 
         for bone in armature.pose.bones:
-            if not bone.bone.select_get():
-                continue
+            if bone.bone.select != True:
+                 continue
 
             if self.physic_proxies:
                 name = "{}_boneGeometry".format(bone.name)
@@ -2603,7 +2603,7 @@ class PhysicalizeSkeleton(bpy.types.Operator):
                             utils.get_bone_material_type(
                                 bone, bone_type)]
 
-                    mat.use_transparency = True
+                    #mat.use_transparency = True
                     mat.diffuse_color[3] = self.physic_alpha
                     if object_.material_slots:
                         object_.material_slot[0].material = mat
@@ -2790,14 +2790,14 @@ class PhysicalizeSkeleton(bpy.types.Operator):
         else:
             materials['rfoot'] = bpy.data.materials.new(mat_rfoot_name)
 
-        materials['larm'].diffuse_color = (0.800, 0.008, 0.019)
-        materials['rarm'].diffuse_color = (1.000, 0.774, 0.013)
-        materials['lleg'].diffuse_color = (0.023, 0.114, 1.000)
-        materials['rleg'].diffuse_color = (0.013, 1.000, 0.048)
-        materials['torso'].diffuse_color = (0.016, 0.016, 0.016)
-        materials['head'].diffuse_color = (0.000, 0.450, 0.464)
-        materials['lfoot'].diffuse_color = (1.000, 0.000, 0.632)
-        materials['rfoot'].diffuse_color = (1.000, 0.32, 0.093)
+        materials['larm'].diffuse_color = (0.800, 0.008, 0.019, 1.0)
+        materials['rarm'].diffuse_color = (1.000, 0.774, 0.013, 1.0)
+        materials['lleg'].diffuse_color = (0.023, 0.114, 1.000, 1.0)
+        materials['rleg'].diffuse_color = (0.013, 1.000, 0.048, 1.0)
+        materials['torso'].diffuse_color = (0.016, 0.016, 0.016, 1.0)
+        materials['head'].diffuse_color = (0.000, 0.450, 0.464, 1.0)
+        materials['lfoot'].diffuse_color = (1.000, 0.000, 0.632, 1.0)
+        materials['rfoot'].diffuse_color = (1.000, 0.32, 0.093, 1.0)
 
     def __set_ik(self, bone):
         if utils.is_in_list(bone.name, ['spine']):
@@ -3620,55 +3620,55 @@ class CryUtilitiesPanel(View3DPanel, Panel):
             icon="MOD_SIMPLEDEFORM")
 
 
-# class BoneUtilitiesPanel(View3DPanel, Panel):
-#     bl_label = "Bone Utilities"
-#     bl_idname = 'VIEW3D_PT_BONEUTILITIES'
+class BoneUtilitiesPanel(View3DPanel, Panel):
+    bl_label = "Bone Utilities"
+    bl_idname = 'VIEW3D_PT_BONEUTILITIES'
 
-#     def draw(self, context):
-#         layout = self.layout
-#         col = layout.column(align=True)
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column(align=True)
 
-#         #TODO: GetMeInThere
-#         col.operator(
-#             "armature.add_export_property",
-#             text="Add Export Property To Bones",
-#             icon="BONE_DATA")
-#         col.operator(
-#             "armature.remove_export_property",
-#             text="Remove Export Property To Bones",
-#             icon="BONE_DATA")
-#         col.operator(
-#             "armature.add_root_bone",
-#             text="Add Root Bone",
-#             icon="BONE_DATA")
-#         col.operator(
-#             "armature.add_primitive_mesh",
-#             text="Add Primitive Mesh",
-#             icon="BONE_DATA")
-#         col.operator(
-#             "armature.add_locator_locomotion",
-#             text="Add Locator Locomotion",
-#             icon="BONE_DATA")
-#         col.separator()
+        #TODO: GetMeInThere
+        col.operator(
+            "armature.add_export_property",
+            text="Add Export Property To Bones",
+            icon="BONE_DATA")
+        col.operator(
+            "armature.remove_export_property",
+            text="Remove Export Property To Bones",
+            icon="BONE_DATA")
+        col.operator(
+            "armature.add_root_bone",
+            text="Add Root Bone",
+            icon="BONE_DATA")
+        col.operator(
+            "armature.add_primitive_mesh",
+            text="Add Primitive Mesh",
+            icon="BONE_DATA")
+        col.operator(
+            "armature.add_locator_locomotion",
+            text="Add Locator Locomotion",
+            icon="BONE_DATA")
+        col.separator()
 
-#         col.operator(
-#             "object.edit_inverse_kinematics",
-#             text="Edit Bone Physic and IKs",
-#             icon="OUTLINER_DATA_ARMATURE")
-#         col.operator(
-#             "ops.apply_animation_scaling",
-#             text="Apply Animation Scaling",
-#             icon="OUTLINER_DATA_ARMATURE")
-#         col.separator()
+        col.operator(
+            "object.edit_inverse_kinematics",
+            text="Edit Bone Physic and IKs",
+            icon="OUTLINER_DATA_ARMATURE")
+        col.operator(
+            "ops.apply_animation_scaling",
+            text="Apply Animation Scaling",
+            icon="OUTLINER_DATA_ARMATURE")
+        col.separator()
 
-#         col.operator(
-#             "armature.physicalize_skeleton",
-#             text="Physicalize Skeleton",
-#             icon="PHYSICS")
-#         col.operator(
-#             "armature.clear_skeleton_physics",
-#             text="Clear Skeleton Physics",
-#             icon="PHYSICS")
+        col.operator(
+            "armature.physicalize_skeleton",
+            text="Physicalize Skeleton",
+            icon="PHYSICS")
+        col.operator(
+            "armature.clear_skeleton_physics",
+            text="Clear Skeleton Physics",
+            icon="PHYSICS")
 
 
 class MeshUtilitiesPanel(View3DPanel, Panel):
@@ -4257,7 +4257,7 @@ def get_classes_to_register():
 
         ExportUtilitiesPanel,
         CryUtilitiesPanel,
-        #BoneUtilitiesPanel,
+        BoneUtilitiesPanel,
         MeshUtilitiesPanel,
         MaterialUtilitiesPanel,
         UserDefinedPropertiesPanel,
