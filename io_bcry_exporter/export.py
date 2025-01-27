@@ -90,7 +90,7 @@ class CrytekDaeExporter:
         converter = RCInstance(self._config)
         converter.convert_dae(self._doc)#TODO:CONVERT DAE And Write config
 
-        write_scripts(self._config)
+        write_scripts(self=self, config=self._config)
 
     def _prepare_for_export(self):
         utils.clean_file(self._config.export_selected_nodes)
@@ -1246,7 +1246,7 @@ class CrytekDaeExporter:
     def getLocalConfig(self):#added because of write_scripts---> did not work :(
         return self._config.export_selected_nodes
 
-def write_scripts(config):
+def write_scripts(self, config):
     filepath = bpy.path.ensure_ext(config.filepath, ".dae")
     if not config.make_chrparams and not config.make_cdf:
         return

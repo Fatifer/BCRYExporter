@@ -746,7 +746,7 @@ def get_chr_names(just_selected=False):
 
     for node in get_export_nodes(just_selected):
         if get_node_type(node) == 'chr':
-            chr_nodes.append(get_node_name(node))
+            chr_names.append(get_node_name(node))#chr_nodes.append(get_node_name(node))
 
     return chr_names
 
@@ -1036,8 +1036,11 @@ def get_keyframes(armature):
                 
                 bone_matrix = parent_matrix.inverted() @ bone_matrix
                                 
-            elif bone.name == 'Locator_Locomotion':
-                bone_matrix = bone.matrix
+            elif bone.name == 'Locator_Locomotion': 
+                bone_matrix = bone.matrix #TODO: LOCATOR_LOCOMOTION--why?
+
+                #parent_matrix = transform_animation_matrix(bone.parent.matrix)
+                #bone_matrix = parent_matrix.inverted() @ bone_matrix
             elif not bone.parent:
                 bone_matrix = Matrix()
 
