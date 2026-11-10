@@ -13,15 +13,16 @@
 
 
 if "bpy" in locals():
-    import imp
-    imp.reload(utils)
-    imp.reload(exceptions)
+    import importlib
+    importlib.reload(utils)
+    importlib.reload(exceptions)
 else:
     import bpy
     from io_bcry_exporter import export, utils, exceptions
 
 from io_bcry_exporter.rc import RCInstance
 from io_bcry_exporter.outpipe import bcPrint
+from io_bcry_exporter import export_groups
 
 from xml.dom.minidom import Document, Element, parse, parseString
 import xml.dom.minidom
@@ -67,6 +68,12 @@ class CrytekDaeAnimationExporter(export.CrytekDaeExporter):
         initial_frame_start = bpy.context.scene.frame_start
         initial_frame_end = bpy.context.scene.frame_end
 
+        # Validate configured ranges before changing the scene for any clip.
+        for candidate in utils.get_animation_export_nodes():
+            if isinstance(candidate, export_groups.ExportNode):
+                export_groups.resolve_animation_range(
+                    candidate, initial_frame_start, initial_frame_end)
+
         ALLOWED_NODE_TYPES = ("i_caf", "anm")
         for group in utils.get_animation_export_nodes():
 
@@ -84,7 +91,7 @@ class CrytekDaeAnimationExporter(export.CrytekDaeExporter):
                     object_ = group.objects[0]
 
                 frame_start, frame_end = utils.get_animation_node_range(
-                    object_, node_name, initial_frame_start, initial_frame_end)
+                    object_, node_name, initial_frame_start, initial_frame_end, node=group)
                 bpy.context.scene.frame_start = frame_start
                 bpy.context.scene.frame_end = frame_end
 
@@ -441,8 +448,10 @@ def save(config):
     if not config.disable_rc and not os.path.isfile(config.rc_path):
         raise exceptions.NoRcSelectedException
 
-    exporter = CrytekDaeAnimationExporter(config)
-    exporter.export()
+    with export_groups.preserve_export_selection():
+        export_groups.validate_names(animation=True)
+        exporter = CrytekDaeAnimationExporter(config)
+        exporter.export()
 
 
 def register():

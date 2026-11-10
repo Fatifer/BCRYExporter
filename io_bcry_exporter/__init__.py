@@ -36,7 +36,7 @@ bl_info = {
     "author": "Özkan Afacan, Angelo J. Miner, Mikołaj Milej, Daniel White, "
               "Oscar Martin Garcia, Duo Oratar, David Marcelis",
     "blender": (2, 80, 0),
-    "version": (5, 3, 0),
+    "version": (5, 3, 2),
     "location": "BCRY Exporter Menu",
     "description": "Export assets from Blender to CryEngine V",
     "warning": "",
@@ -52,13 +52,13 @@ VERSION = '.'.join(str(n) for n in bl_info["version"])
 
 
 if "bpy" in locals():
-    import imp
-    imp.reload(export)
-    imp.reload(exceptions)
-    imp.reload(udp)
-    imp.reload(utils)
-    imp.reload(material_utils)
-    imp.reload(desc)
+    import importlib
+    importlib.reload(export)
+    importlib.reload(exceptions)
+    importlib.reload(udp)
+    importlib.reload(utils)
+    importlib.reload(material_utils)
+    importlib.reload(desc)
 else:
     import bpy
     from io_bcry_exporter import export, export_animations, exceptions, udp, utils, material_utils, desc
@@ -69,6 +69,7 @@ from bpy.types import Menu, Panel
 from bpy_extras.io_utils import ExportHelper
 from mathutils import Vector, Matrix
 from io_bcry_exporter.configuration import Configuration
+from io_bcry_exporter import export_groups
 from io_bcry_exporter.outpipe import bcPrint
 from io_bcry_exporter.desc import list
 from xml.dom.minidom import Document, Element, parse, parseString
@@ -195,7 +196,7 @@ class AddCryExportNode(bpy.types.Operator):
     '''Add selected objects to an existing or new CryExportNode'''
     bl_label = "Add Export Node"
     bl_idname = "object.add_cry_export_node"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"REGISTER", "UNDO", "INTERNAL"}
 
     node_type : EnumProperty(
         name="Type",
@@ -213,7 +214,7 @@ class AddCryExportNode(bpy.types.Operator):
     )
     node_name : StringProperty(name="Name")
 
-    def __init__(self):
+    def _set_defaults(self):
         #bpy.ops.object.mode_set(mode='OBJECT')
         object_ = bpy.context.active_object
         self.node_name = object_.name
@@ -238,13 +239,9 @@ class AddCryExportNode(bpy.types.Operator):
         if bpy.context.selected_objects:
             scene = bpy.context.scene
             node_name = "{}.{}".format(self.node_name, self.node_type)
-            collection = bpy.data.collections.get(node_name)
-            if collection is None:#TODO: make Collection link to a scene collection
-                bpy.ops.collection.create(name=node_name)
-            else:
-                for object in bpy.context.selected_objects:
-                    if object.name not in collection.objects:
-                        collection.objects.link(object)
+            node = export_groups.create_node(scene, self.node_name, self.node_type, reuse=True)
+            for object_ in context.selected_objects:
+                node.objects.link(object_)
             message = "Adding Export Node"
         else:
             message = "No Objects Selected"
@@ -259,6 +256,7 @@ class AddCryExportNode(bpy.types.Operator):
                 "Select one or more objects in OBJECT mode.")
             return {'FINISHED'}
 
+        self._set_defaults()
         return context.window_manager.invoke_props_dialog(self)
 
 
@@ -266,7 +264,7 @@ class AddCryAnimationNode(bpy.types.Operator):
     '''Add animation node to selected armature or object'''
     bl_label = "Add Animation Node"
     bl_idname = "object.add_cry_animation_node"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"REGISTER", "UNDO", "INTERNAL"}
 
     node_type : EnumProperty(
         name="Type",
@@ -318,7 +316,7 @@ class AddCryAnimationNode(bpy.types.Operator):
         col.prop(self, "start_m_name")
         col.prop(self, "end_m_name")
 
-    def __init__(self):
+    def _set_defaults(self):
         #Wrong context. should not be called in __init__
         #bpy.ops.object.mode_set(mode='OBJECT')
         
@@ -336,7 +334,7 @@ class AddCryAnimationNode(bpy.types.Operator):
 
         tm = bpy.context.scene.timeline_markers
         for marker in tm:
-            if marker.select_get():
+            if marker.select:
                 self.start_m_name = marker.name
                 self.end_m_name = "{}_E".format(marker.name)
                 self.is_use_markers = True
@@ -380,14 +378,14 @@ class AddCryAnimationNode(bpy.types.Operator):
                 object_[end_name] = node_end
 
             node_name = "{}.{}".format(self.node_name, self.node_type)
-            collection = bpy.data.collections.get(node_name)
-            if collection is None:
-                bpy.ops.collection.create(name=node_name)
-            else:
-                for object in bpy.context.selected_objects:
-                    if object.name not in collection.objects:
-                        collection.objects.link(object)
-
+            node = export_groups.create_node(context.scene, self.node_name, self.node_type, reuse=True)
+            for member in context.selected_objects:
+                node.objects.link(member)
+            export_groups.configure_animation_range(
+                node, self.range_type,
+                start=self.node_start if self.range_type != 'Timeline' else None,
+                end=self.node_end if self.range_type != 'Timeline' else None,
+                start_marker=self.start_m_name, end_marker=self.end_m_name)
             message = "Adding Export Node"
         else:
             message = "There is no a active armature! Please select a armature."
@@ -403,6 +401,7 @@ class AddCryAnimationNode(bpy.types.Operator):
                 "Please select and active a armature or object.")
             return {'FINISHED'}
 
+        self._set_defaults()
         return context.window_manager.invoke_props_dialog(self)
 
 
@@ -417,8 +416,9 @@ class SelectedToCryExportNodes(bpy.types.Operator):
         bpy.ops.object.select_all(action="DESELECT")
         for object_ in selected:
             object_.select_set(True)
-            if (len(object_.users_collection) == 0):
-                bpy.ops.collection.create(name="{}.cgf".format(object_.name))
+            export_groups.initialize(context.scene)
+            if not export_groups.object_nodes(object_):
+                export_groups.create_node(context.scene, object_.name, 'cgf').objects.link(object_)
             object_.select_set(False)
 
         for object_ in selected:
@@ -538,11 +538,9 @@ class GenerateLODs(bpy.types.Operator):
         col.prop(self, "view_offset")
         col.separator()
 
-    def __init__(self):
-        object_ = bpy.context.active_object
-        if not object_ or object_.type != 'MESH':
-            self.report({'ERROR'}, "Please select a mesh object!")
-            return {'FINISHED'}
+    @classmethod
+    def poll(cls, context):
+        return context.object is not None and context.object.type == 'MESH' and context.mode == 'OBJECT'
 
     def execute(self, context):
         object_ = bpy.context.active_object
@@ -553,7 +551,7 @@ class GenerateLODs(bpy.types.Operator):
 
         node = None
         ALLOWED_NODE_TYPES = ('cgf', 'cga', 'skin')
-        for collection in object_.users_collection:
+        for collection in export_groups.object_nodes(object_):
             if utils.is_export_node(collection):
                 node_type = utils.get_node_type(collection)
                 if node_type in ALLOWED_NODE_TYPES:
@@ -562,6 +560,7 @@ class GenerateLODs(bpy.types.Operator):
 
         bpy.ops.object.duplicate()
         lod = bpy.context.active_object
+        export_groups.copy_membership(object_, lod)
         lod.location.x += self.view_offset
 
         bpy.ops.object.modifier_add(type='DECIMATE')
@@ -576,6 +575,7 @@ class GenerateLODs(bpy.types.Operator):
             bpy.ops.object.duplicate()
 
             lod = bpy.context.active_object
+            export_groups.copy_membership(object_, lod)
             lod.location.x += self.view_offset
 
             decimate = lod.modifiers[len(lod.modifiers) - 1]
@@ -652,7 +652,9 @@ be converted to the selected shape in CryEngine.'''
         bpy.ops.mesh.uv_texture_add()
 
         for collection in object_.users_collection:
-            bpy.ops.object.collection_link(collection=collection.name)
+            if bound_box.name not in collection.objects:
+                collection.objects.link(bound_box)
+        export_groups.copy_membership(object_, bound_box)
 
         name = "99__proxy__physProxyNoDraw"
         if name in bpy.data.materials:
@@ -765,7 +767,7 @@ class AddBreakableJoint(bpy.types.Operator):
             self.report({'ERROR'}, message)
             return {'FINISHED'}
 
-        for collection in self.object_.users_collection:
+        for collection in export_groups.object_nodes(self.object_):
             if utils.is_export_node(collection) and \
                     utils.get_node_type(collection) == 'cgf':
                 self.collection_ = collection
@@ -920,20 +922,22 @@ class AddMaterialProperties(bpy.types.Operator):
     object_ = None
     errorReport = None
 
-    def __init__(self):
+    def _initialize(self):
+        self.errorReport = None
         cryNodeReport = "Please select a object that in a Cry Export node" \
             + " for 'Do Material Convention'. If you have not created" \
             + " it yet, please create it with 'Add ExportNode' tool."
 
         self.object_ = bpy.context.active_object
 
-        if self.object_ is None or self.object_.users_collection is None:
+        if self.object_ is None:
             self.errorReport = cryNodeReport
             return None
 
-        for collection in self.object_.users_collection:
+        for collection in export_groups.object_nodes(self.object_):
             if utils.is_export_node(collection):
-                self.material_name = utils.get_node_name(collection)
+                if not self.properties.is_property_set('material_name'):
+                    self.material_name = utils.get_node_name(collection)
                 return None
 
         self.errorReport = cryNodeReport
@@ -941,6 +945,8 @@ class AddMaterialProperties(bpy.types.Operator):
         return None
 
     def execute(self, context):
+        if self.object_ is None:
+            self._initialize()
         if self.errorReport is not None:
             return {'FINISHED'}
 
@@ -952,7 +958,7 @@ class AddMaterialProperties(bpy.types.Operator):
         # of materials in it.
         materialCounter = material_utils.get_material_counter()
 
-        for collection in self.object_.users_collection:
+        for collection in export_groups.object_nodes(self.object_):
             if utils.is_export_node(collection):
                 for object in collection.objects:
                     for slot in object.material_slots:
@@ -984,8 +990,10 @@ class AddMaterialProperties(bpy.types.Operator):
         return {'FINISHED'}
 
     def invoke(self, context, event):
+        self._initialize()
         if self.errorReport is not None:
-            return self.report({'ERROR'}, self.errorReport)
+            self.report({'ERROR'}, self.errorReport)
+            return {'CANCELLED'}
 
         return context.window_manager.invoke_props_dialog(self)
 
@@ -1028,9 +1036,11 @@ class AddMaterial(bpy.types.Operator):
         if bpy.context.selected_objects:
             materials = {}
             for _object in bpy.context.selected_objects:
-                if (len(_object.users_collection) > 0):
-                    # get cryexport collection
-                    node_name = _object.users_collection[0].name
+                nodes = export_groups.object_nodes(_object)
+                if nodes:
+                    active = export_groups.active_node(context.scene)
+                    node = active if active in nodes else nodes[0]
+                    node_name = node.name
                     # get material for this collection
                     if node_name not in materials:
                         index = len(
@@ -1038,12 +1048,13 @@ class AddMaterial(bpy.types.Operator):
                         # generate new material
                         material = bpy.data.materials.new(
                             "{}__{:03d}__{}__{}".format(
-                                node_name.split(".")[0],
+                                utils.get_node_name(node),
                                 index, self.material_name, self.physics_type
                             )
                         )
                         materials[node_name] = material
-                    _object.data.materials.append(material)
+                    if _object.type == 'MESH':
+                        _object.data.materials.append(materials[node_name])
                 else:
                     # ignoring object without collection
                     bcPrint("Object " + _object.name +
@@ -2601,6 +2612,7 @@ class PhysicalizeSkeleton(bpy.types.Operator):
 
                 bpy.ops.object.mode_set(mode='OBJECT')
 
+                #Getting the Transform right
                 object_.matrix_world = utils.transform_animation_matrix(
                     bone.matrix)
                 #bpy.ops.object.transform_apply(scale=True)
@@ -2997,10 +3009,30 @@ class PhysicalizeSkeletonTwo(bpy.types.Operator):
             # Erstelle ein Material, das für alle Cubes verwendet wird
             material_name = "BoneGeometry_Material"
             
+            pose_boneNames = []
+
             # Durchlaufe alle Knochen in der Armatur
             for bone in armature.data.bones:
                 # Überprüfen, ob der Knochen selektiert ist
                 if bone.select:
+                    pose_boneNames.append(bone.name)
+                    
+                    # bone['Spring'] = (0.0, 0.0, 0.0)
+                    # bone['Spring Tension'] = (1.0, 1.0, 1.0)
+                    # bone['Damping'] = (1.0, 1.0, 1.0)
+                    # bone['phys_proxy'] = 'capsule'
+                    # bone.data.Damping = (1.0, 1.0, 1.0)
+                    # bone.data.Spring = (0.0, 0.0, 0.0)
+                    # bone.data.SpringTension = (1.0, 1.0, 1.0)
+                    # bone.data.phys_proxy = 'capsule'
+                    
+                    # bone.Damping = (1.0, 1.0, 1.0)
+                    # bone.Spring = (0.0, 0.0, 0.0)
+                    # bone.SpringTension = (1.0, 1.0, 1.0)
+                    # bone.phys_proxy = 'capsule'
+
+
+
                     # Erstelle einen neuen Cube
                     bpy.ops.mesh.primitive_cube_add(size=1, location=bone.head_local)
                     cube = bpy.context.object
@@ -3008,7 +3040,37 @@ class PhysicalizeSkeletonTwo(bpy.types.Operator):
                     # Benenne den Cube entsprechend dem Knochennamen mit dem Suffix _boneGeometry
                     cube.name = bone.name + "_boneGeometry"
                     cube.data.name = bone.name + "_boneGeometry"
+                    chr_node = utils.get_chr_node_from_skeleton(armature)
+                    if chr_node is not None:
+                        chr_node.objects.link(cube)
+
+
+
+
+                    #TODO:Getting the Transform right
+                    #Getting the Transform right
+                    # bpy.ops.object.mode_set(mode='EDIT')
+
+                    # bm = bmesh.from_edit_mesh(cube.data)
+                    # scale_vector = (2.07, 2.07, 2.07)
+
+                    # for face in bm.faces:
+                    #     if face.normal.x == -1.0:
+                    #         for vert in face.verts:
+                    #             vert.co.x = 0.0
+                    #     elif face.normal.x == 1.0:
+                    #         for vert in face.verts:
+                    #             vert.co.x = bone.length
+                    #         bmesh.ops.scale(bm, vec=scale_vector, verts=face.verts)
+
+                    # bpy.ops.object.mode_set(mode='OBJECT')
+
+                    # cube.matrix_world = utils.transform_animation_matrix(
+                    #     bone.matrix)
                     
+
+
+
                     # Skaliere den Cube, um die Größe des Knochens widerzuspiegeln
                     cube.scale = (bone.length, bone.length, bone.length)
                     
@@ -3020,12 +3082,29 @@ class PhysicalizeSkeletonTwo(bpy.types.Operator):
                     
                     # Weise das Material dem Cube zu
                     self.__create_and_assign_material(cube, material_name)
+
+                    self.__setPoseBoneProperty(armature, pose_boneNames)
+                    
                     
             print("Cubes mit korrekter Ausrichtung und gemeinsamem Material für selektierte Knochen erfolgreich erstellt!")
         else:
             print("Bitte wählen Sie eine Armatur aus!")
 
         return {'FINISHED'}
+
+    def __setPoseBoneProperty(self, obj, boneNames):
+        # Iteriere über alle Objekte in der aktuellen Szene
+        for obj in bpy.context.scene.objects:
+            if obj.type == 'ARMATURE' and obj.pose:
+                # Iteriere über alle PoseBones des Armaturen-Objekts
+                for pose_bone in obj.pose.bones:
+                    if pose_bone.name in boneNames:
+                        # Füge die Custom Property hinzu, falls sie noch nicht existiert
+                        pose_bone['Spring'] = (0.0, 0.0, 0.0)
+                        pose_bone['Spring Tension'] = (1.0, 1.0, 1.0)
+                        pose_bone['Damping'] = (1.0, 1.0, 1.0)
+                        pose_bone['phys_proxy'] = 'capsule'
+            
 
     def __create_and_assign_material(self, obj, material_name):
         # Überprüfen, ob das Material bereits existiert
@@ -3062,7 +3141,7 @@ class PhysicalizeSkeletonTwo(bpy.types.Operator):
         cube.rotation_mode = 'QUATERNION'
         cube.rotation_quaternion = rotation_difference
 
-
+#TODO:----->Set the Origin of the Cube inside the BoneHead/Tail
 
 
 
@@ -3550,7 +3629,10 @@ class QuickExport(bpy.types.Operator, ExportHelper):
 
     def execute(self, context):
         bcPrint(Configuration.rc_path, 'debug', True)
-        self.filepath = bpy.path.abspath('//')
+        if not bpy.data.filepath:
+            self.report({'ERROR'}, 'Bitte die Blend-Datei vor dem Quick Export speichern.')
+            return {'CANCELLED'}
+        self.filepath = os.path.splitext(bpy.data.filepath)[0] + '.dae'
         try:
             config = Export.Config(config=self)
 
@@ -3680,15 +3762,6 @@ class ExportUtilitiesPanel(View3DPanel, Panel):
         layout = self.layout
 
         col = layout.column(align=True)
-        row = col.row(align=True)
-        row.operator(
-            "object.add_cry_export_node",
-            text="Add Export Node",
-            icon="GROUP")
-        row.operator(
-            "object.add_cry_animation_node",
-            text="Add Animation Node",
-            icon="PREVIEW_RANGE")
         col.operator(
             "object.selected_to_cry_export_nodes",
             text="Export Nodes from Objects",
@@ -3990,15 +4063,7 @@ class BCryMainMenu(bpy.types.Menu):
             layout.label(text="No RC found.", icon='ERROR')
         layout.separator()
 
-        # layout.operator("open_donate.wp", icon='FORCE_DRAG')
-        layout.operator(
-            "object.add_cry_export_node",
-            text="Add Export Node",
-            icon="GROUP")
-        layout.operator(
-            "object.add_cry_animation_node",
-            text="Add Animation Node",
-            icon="PREVIEW_RANGE")
+        layout.operator('bcry.add_export_group', text='Exportgruppe anlegen', icon='ADD')
         layout.operator(
             "object.selected_to_cry_export_nodes",
             text="Export Nodes from Objects",
@@ -4469,7 +4534,9 @@ def register_bcry_icons():
 
 def unregister_bcry_icons():
     global bcry_icons
-    bpy.utils.previews.remove(bcry_icons)
+    if globals().get('bcry_icons') is not None:
+        bpy.utils.previews.remove(bcry_icons)
+        bcry_icons = None
 
 def make_annotations(cls):
     """Converts class fields to annotations if running with Blender 2.8"""
@@ -4487,6 +4554,7 @@ def make_annotations(cls):
 
 def register():
     register_bcry_icons()
+    export_groups.register()
 
     for classToRegister in get_classes_to_register():
         make_annotations(classToRegister)
@@ -4509,24 +4577,30 @@ def register():
 
 
 def unregister():
+    export_groups.unregister()
     unregister_bcry_icons()
 
     # Be sure to unregister operators.
-    for classToRegister in get_classes_to_register():
-        bpy.utils.unregister_class(classToRegister)
-        wm = bpy.context.window_manager
+    for classToRegister in reversed(get_classes_to_register()):
+        if getattr(classToRegister, 'is_registered', False):
+            bpy.utils.unregister_class(classToRegister)
+    wm = bpy.context.window_manager
     kc = wm.keyconfigs.addon
     if kc:
-        km = kc.keymaps['3D View']
-        for kmi in km.keymap_items:
+        km = kc.keymaps.get('3D View')
+        for kmi in tuple(km.keymap_items) if km else ():
             if kmi.idname == 'wm.call_menu':
                 if kmi.properties.name == "MENU_MT_BCRYREDUCEDMENU":
                     km.keymap_items.remove(kmi)
                     break
 
-    bpy.types.INFO_HT_header.remove(draw_item)
-    bpy.types.MATERIAL_MT_context_menu.remove(physics_menu)
-    bpy.types.MESH_MT_vertex_group_context_menu.remove(remove_unused_vertex_groups)
+    for owner, callback in ((bpy.types.INFO_HT_header, draw_item),
+                            (bpy.types.MATERIAL_MT_context_menu, physics_menu),
+                            (bpy.types.MESH_MT_vertex_group_context_menu, remove_unused_vertex_groups)):
+        try:
+            owner.remove(callback)
+        except (ValueError, RuntimeError):
+            pass
 
 
 if __name__ == "__main__":

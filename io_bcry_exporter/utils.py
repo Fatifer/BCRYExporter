@@ -16,15 +16,16 @@
 
 
 if "bpy" in locals():
-    import imp
-    imp.reload(material_utils)
-    imp.reload(exceptions)
+    import importlib
+    importlib.reload(material_utils)
+    importlib.reload(exceptions)
 else:
     import bpy
     from io_bcry_exporter import material_utils, exceptions
 
 
 from io_bcry_exporter.outpipe import bcPrint
+from io_bcry_exporter import export_groups
 from mathutils import Matrix, Vector
 from xml.dom.minidom import Document, parseString
 import bpy
@@ -705,7 +706,7 @@ def get_export_nodes(just_selected=False):
     if just_selected:
         return __get_selected_nodes()
 
-    for group in bpy.data.collections:
+    for group in export_groups.get_nodes():
         if is_export_node(group) and len(group.objects) > 0:
             export_nodes.append(group)
 
@@ -725,7 +726,7 @@ def get_mesh_export_nodes(just_selected=False):
 
 def get_chr_node_from_skeleton(armature):
     for child in armature.children:
-        for group in child.users_collection:
+        for group in export_groups.object_nodes(child):
             if group.name.endswith('.chr'):
                 return group
 
@@ -734,7 +735,7 @@ def get_chr_node_from_skeleton(armature):
 
 def get_chr_object_from_skeleton(armature):
     for child in armature.children:
-        for group in child.users_collection:
+        for group in export_groups.object_nodes(child):
             if group.name.endswith('.chr'):
                 return child
 
@@ -754,11 +755,8 @@ def get_chr_names(just_selected=False):
 def get_animation_export_nodes(just_selected=False):
     export_nodes = []
 
-    if just_selected:
-        return __get_selected_nodes()
-
     ALLOWED_NODE_TYPES = ('anm', 'i_caf')
-    for group in bpy.data.collections:
+    for group in get_export_nodes(just_selected):
         if is_export_node(group) and len(group.objects) > 0:
             if get_node_type(group) in ALLOWED_NODE_TYPES:
                 export_nodes.append(group)
@@ -767,14 +765,7 @@ def get_animation_export_nodes(just_selected=False):
 
 
 def __get_selected_nodes():
-    export_nodes = []
-
-    for object in bpy.context.selected_objects:
-        for group in object.users_collection:
-            if is_export_node(group) and group not in export_nodes:
-                export_nodes.append(group)
-
-    return export_nodes
+    return export_groups.selected_nodes()
 
 
 def get_type(type_):
@@ -984,6 +975,7 @@ def add_fakebones(group=None):
 
 def remove_fakebones():
     '''Select to remove all fakebones from the scene.'''
+    export_groups.clear_temporary_members()
     if len(get_type("fakebones")) == 0:
         return
     old_mode = bpy.context.mode
@@ -1233,7 +1225,7 @@ def get_geometry_animation_file_name(group):
 
 def find_cga_node_from_anm_node(anm_group):
     for object_ in anm_group.objects:
-        for group in object_.users_collection:
+        for group in export_groups.object_nodes(object_):
             if get_node_type(group) == 'cga':
                 return group
     return None
@@ -1402,7 +1394,9 @@ def get_bones(armature):#TODO: Get just the ExportBone taged bones
     return [bone for bone in armature.data.bones]# if "ExportBone" in bone]
 
 
-def get_animation_node_range(object_, node_name, initial_start, initial_end):
+def get_animation_node_range(object_, node_name, initial_start, initial_end, node=None):
+    if isinstance(node, export_groups.ExportNode):
+        return export_groups.resolve_animation_range(node, initial_start, initial_end)
     try:
         start_frame = object_["{}_Start".format(node_name)]
         end_frame = object_["{}_End".format(node_name)]

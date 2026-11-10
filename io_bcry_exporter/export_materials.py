@@ -12,9 +12,9 @@
 #------------------------------------------------------------------------------
 
 if "bpy" in locals():
-    import imp
-    imp.reload(utils)
-    imp.reload(material_utils)
+    import importlib
+    importlib.reload(utils)
+    importlib.reload(material_utils)
 else:
     import bpy
     from io_bcry_exporter import utils, material_utils

@@ -15,11 +15,11 @@
 
 
 if "bpy" in locals():
-    import imp
-    imp.reload(utils)
-    imp.reload(export_materials)
-    imp.reload(udp)
-    imp.reload(exceptions)
+    import importlib
+    importlib.reload(utils)
+    importlib.reload(export_materials)
+    importlib.reload(udp)
+    importlib.reload(exceptions)
 else:
     import bpy
     from io_bcry_exporter import utils, export_materials, udp, exceptions
@@ -27,6 +27,7 @@ else:
 from typing import Self
 from io_bcry_exporter.rc import RCInstance
 from io_bcry_exporter.outpipe import bcPrint
+from io_bcry_exporter import export_groups
 from io_bcry_exporter.utils import join
 
 from bpy_extras.io_utils import ExportHelper
@@ -1075,7 +1076,7 @@ class CrytekDaeExporter:
             prop = self._doc.createTextNode("CustomExportPath=")
             properties.appendChild(prop)
         else:
-            if not node.rna_type.id_data.items():
+            if not node.items():
                 return
 
         technique.appendChild(properties)
@@ -1132,7 +1133,7 @@ class CrytekDaeExporter:
 
     def _create_user_defined_property(self, object_):
         udp_buffer = ""
-        for prop in object_.rna_type.id_data.items():
+        for prop in object_.items():
             if prop:
                 prop_name = prop[0]
                 if udp.is_user_defined_property(prop_name):
@@ -1271,8 +1272,10 @@ def save(config):
     if not config.disable_rc and not os.path.isfile(config.rc_path):
         raise exceptions.NoRcSelectedException
 
-    exporter = CrytekDaeExporter(config)
-    exporter.export()
+    with export_groups.preserve_export_selection():
+        export_groups.validate_names()
+        exporter = CrytekDaeExporter(config)
+        exporter.export()
 
 
 def register():

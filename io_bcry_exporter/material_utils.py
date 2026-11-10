@@ -13,15 +13,16 @@
 
 
 if "bpy" in locals():
-    import imp
-    imp.reload(utils)
-    imp.reload(exceptions)
+    import importlib
+    importlib.reload(utils)
+    importlib.reload(exceptions)
 else:
     import bpy
     from io_bcry_exporter import utils, exceptions
 
 from io_bcry_exporter.rc import RCInstance
 from io_bcry_exporter.outpipe import bcPrint
+from io_bcry_exporter import export_groups
 from collections import OrderedDict
 from xml.dom.minidom import Document, Element, parse, parseString
 import bpy
@@ -396,7 +397,7 @@ def color_to_xml_string(color):
 def get_material_counter():
     """Returns a dictionary with all CryExportNodes."""
     materialCounter = {}
-    for group in bpy.data.collections:
+    for group in export_groups.get_nodes(include_empty=True):
         if utils.is_export_node(group):
             materialCounter[group.name] = 0
     return materialCounter
@@ -414,8 +415,12 @@ def get_material_physics():
 
 def get_materials_per_group(group):
     materials = []
-    for _objtmp in bpy.data.collections[group].objects:
-        for material in _objtmp.data.materials:
+    node = next((node for node in export_groups.get_nodes(include_empty=True)
+                 if node.name == group), None)
+    if node is None:
+        return materials
+    for _objtmp in node.objects:
+        for material in getattr(_objtmp.data, 'materials', ()):
             if material is not None:
                 if material.name not in materials:
                     materials.append(material.name)

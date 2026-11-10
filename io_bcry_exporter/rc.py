@@ -15,8 +15,8 @@
 
 
 if "bpy" in locals():
-    import imp
-    imp.reload(utils)
+    import importlib
+    importlib.reload(utils)
 else:
     import bpy
     from io_bcry_exporter import utils
