@@ -1,4 +1,4 @@
-#BCRYExporter modified for Cryengine 3 and Blender 4.1
+#BCRYExporter modified for Cryengine 3 and Blender 5.X
 
 # BCRYExporter
 This is ported version of BCRYExporter for Cryengine 5 from https://github.com/AFCStudio/BCRYExporter for Blender 2.8*
